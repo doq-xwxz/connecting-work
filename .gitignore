@@ -1,0 +1,33 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+src/generated/
+.env*
+!.env.example
+.vercel/
+*.log
+playwright-report/
+test-results/
+.DS_Store
+Thumbs.db
+next-env.d.ts
+
+# Build outputs and local caches
+dist/
+build/
+.cache/
+.turbo/
+.tmp/
+tmp/
+
+# Local credentials and private keys
+credentials.json
+credentials.*.json
+service-account*.json
+service_account*.json
+*.pem
+*.key
+*.p12
+*.pfx
