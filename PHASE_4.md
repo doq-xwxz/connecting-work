@@ -1,6 +1,6 @@
 # Phase 4 review — Jobs + Publishing + Ownership + Quota
 
-Evidence date: 2026-10-07. PRODUCT and approved Phase 0–3 reports remain intact. Phase 4 only; no deployment or Phase 5. Authored behavior and executed evidence are separated below.
+Evidence dates: 2026-10-07–08 (Asia/Saigon). PRODUCT and approved Phase 0–3 reports remain intact. Phase 4 only; no deployment or Phase 5. Authored behavior and executed evidence are separated below.
 
 ## 1. Phase 4 Summary
 
@@ -70,7 +70,7 @@ Real sessions plus fresh role/status/email/profile/ownership checks; server-only
 
 Executed local checks: install frozen PASS; Prisma validate PASS; lint PASS; typecheck PASS; unit PASS (191 tests, 11 files); build PASS. No dependency or lockfile change.
 
-Executed against a fresh disposable PostgreSQL 18.6 cluster: migration deploy PASS (all five migrations from zero); repeat deploy PASS (no pending migrations); migration status PASS; DB smoke PASS (transient User rolled back); Phase 2 auth regression PASS; Phase 3 profile/company regression PASS; Phase 4 PostgreSQL integration PASS; actual Next HTTP Phase 2–4 regression PASS. Test server and database were stopped after execution. Credentials/cluster/binaries were confined to ignored temporary verification files; no production endpoint was used. GitHub Actions result is recorded in §20 after publication.
+Executed against a fresh disposable PostgreSQL 18.6 cluster: migration deploy PASS (all five migrations from zero); repeat deploy PASS (no pending migrations); migration status PASS; DB smoke PASS (transient User rolled back); Phase 2 auth regression PASS; Phase 3 profile/company regression PASS; Phase 4 PostgreSQL integration PASS; actual Next HTTP Phase 2–4 regression PASS. Test server and database were stopped after execution. Temporary credentials, cluster, binaries, archive and offline schema were removed after validation; no production endpoint was used. GitHub Actions repeats the static and DB/HTTP checks; exact evidence is in §20.
 
 Unit coverage includes all six states × five actions, exact money/date/headcount/skill/schedule validation, publish completeness, ownership/quota, serializable terms, future guard and DTO privacy. Dedicated jobs script covers DB constraints, independent quotas, competing publishers/resume, actor/membership lock waits and departed creators. HTTP suite retains all Phase 2/3 checks and adds anonymous/public/private Job routes, unverified/suspended policy, origin/mass assignment, quota and explicit actions. Only email transport is intercepted in the development child; real Next/Better Auth/PostgreSQL remain in use.
 
@@ -88,8 +88,10 @@ Separate employer-jobs management namespace makes public projection explicit; op
 
 ## 19. Remaining blockers
 
-Local Phase 4 validation has no remaining blocker. Remote CI is pending publication at report drafting; §20 records the final evidence. Phase 5 and deployment are intentionally outside authorization, not missing Phase 4 features. Historical PRODUCT/Phase 0–3 decisions and original migrations remain unchanged. PostgreSQL Phase 3/4 suites emitted a pg deprecation warning about overlapping queries on one connection; both passed on supported pg 8.23.1. Jobs quota-read queries on its single transaction connection are sequential; the integration races deliberately use independent transactions. The warning's exact adapter/library origin has not been attributed; reassess before a pg 9 upgrade. It is not a current validation failure.
+Phase 4 validation has no remaining blocker. Phase 5 and deployment are intentionally outside authorization, not missing Phase 4 features. Historical PRODUCT/Phase 0–3 decisions and original migrations remain unchanged. PostgreSQL Phase 3/4 suites emitted a pg deprecation warning about overlapping queries on one connection; both passed on supported pg 8.23.1. Jobs quota-read queries on its single transaction connection are sequential; the integration races deliberately use independent transactions. The warning's exact adapter/library origin has not been attributed; reassess before a pg 9 upgrade. It is not a current validation failure. Browser interaction automation and provider deployment testing were not performed; HTTP exercised real server-rendered pages/API/DB flows.
 
 ## 20. Git commit / remote CI evidence
 
-Publication pending validation and staged-diff/secret review. Current branch main, origin https://github.com/doq-xwxz/connecting-work.git. No force push or history rewrite. Final commit SHA, exact remote match and both CI job results will be recorded after push.
+Implementation commit: [`7387fdc187f33e5227fed85e2db8292584bf78c3`](https://github.com/doq-xwxz/connecting-work/commit/7387fdc187f33e5227fed85e2db8292584bf78c3), pushed to origin/main with exact `git ls-remote` SHA match. [GitHub Actions run 37655744697](https://github.com/doq-xwxz/connecting-work/actions/runs/37655744697): **PASS**, completed/success on that exact head SHA; both **checks PASS** and **postgres-auth PASS**, including new jobs and extended HTTP suites. The documentation commit's exact remote SHA and its own CI result are reported in the final delivery to avoid self-referential commit hashes.
+
+Staged diff/SQL/public DTOs reviewed; no generated clients/build outputs/local env/test fixtures/credentials staged. Secret-pattern review found only documented placeholder URLs and job-local disposable CI credentials. Actual temporary DB password had zero matches in Git-eligible files; browser JavaScript had no DB URL/auth/provider secret configuration. Lockfile and dependency versions unchanged. Initial GitHub server-side 500 push errors were resolved with an ordinary HTTP/1.1 push. No force push, reset, rewritten history or deployment.
