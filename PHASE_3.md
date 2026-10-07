@@ -1,6 +1,6 @@
 # Phase 3 — Worker / Employer Profiles + Company Foundation
 
-Status: implemented; local PostgreSQL/HTTP verification recorded below; awaiting Phase 3 review. Phases 0–2 are approved and Phase 2 is closed. PRODUCT, PHASE_0, PHASE_1 and PHASE_2 remain unchanged. No Phase 4 or deployment is authorized.
+Status: implemented and verified locally and on GitHub Actions; awaiting Phase 3 review. Phases 0–2 are approved and Phase 2 is closed. PRODUCT, PHASE_0, PHASE_1 and PHASE_2 remain unchanged. No Phase 4 or deployment is authorized.
 
 ## 1. Phase 3 Summary
 
@@ -111,7 +111,7 @@ Local Windows Node 24.20 / pnpm 11.25.0; actual disposable PostgreSQL 18.6. No p
 | pnpm test:profiles | PASS; real PostgreSQL constraints/duplicate concurrency/privacy/authorization/Company locks |
 | pnpm test:http | PASS; real Next Phase 2 regression + Phase 3 APIs/server pages |
 | Secret/diff/migration review | PASS; Git-eligible sources/static assets scanned; SQL/new/tracked files reviewed; original reports/migrations/lockfile unchanged |
-| GitHub Actions | Publication verification recorded in §18 |
+| GitHub Actions | PASS; implementation run 37649738484, checks + postgres-auth, exact commit in §18 |
 
 Unit coverage: required completeness/availability, levels, preference/location rules, overlap/bounds/timezone, safe field errors, protected input, DTO/coarse projection, slug/role/website and pagination. Pure DTO tests mock only the server-only import marker, never DB/concurrency behavior.
 
@@ -143,8 +143,12 @@ No product contradiction found. Invitation/member-add/promotion/ownership-transf
 
 ## 17. Remaining blockers
 
-No missing local PostgreSQL blocker: real disposable DB, locks and actual HTTP are available and tested. Publication/CI outcome must be verified before declaring delivery complete; final outcome in §18. Phase 3 user review remains pending. Hosted-provider/release checks are deferred deployment readiness, not evidence of a deployment. Stop here; no Jobs/hiring/messaging/uploads/moderation/Phase 4 or deployment.
+No Phase 3 implementation/validation/publication blocker remains. Real disposable DB locks and actual HTTP passed locally and remotely. Phase 3 user review remains pending. Hosted-provider/release checks are deferred deployment readiness, not evidence of a deployment. Stop here; no Jobs/hiring/messaging/uploads/moderation/Phase 4 or deployment.
 
 ## 18. Git commit / remote CI evidence
 
-Base: eb445038f1dad3083d6f2424c46715f3ca5a0e7a on main. Target: https://github.com/doq-xwxz/connecting-work, current branch main. Standing authorization permits reviewed commit/push; no history rewrite/force push. Commit and remote Actions evidence will be recorded after final review and push.
+Base: eb445038f1dad3083d6f2424c46715f3ca5a0e7a on main. Published implementation: [845be9377b2b4f3289105155b779a05498f51b57](https://github.com/doq-xwxz/connecting-work/commit/845be9377b2b4f3289105155b779a05498f51b57). git ls-remote verified that exact SHA on origin/main immediately after push. No force push/history rewrite.
+
+[GitHub Actions implementation run 37649738484](https://github.com/doq-xwxz/connecting-work/actions/runs/37649738484): completed SUCCESS on that exact SHA; both checks and postgres-auth SUCCESS. The PostgreSQL job includes migrations/status/smoke, Phase 2 auth integration, Phase 3 real lock integration and the combined real Next HTTP suite. Independent Ubuntu/PostgreSQL CI passed in addition to Windows/PostgreSQL local checks.
+
+Staged review covered 41 authorized source/schema/migration/test/doc files, 1,580 insertions/38 deletions, with git diff --cached --check PASS. No credentials, local env, generated clients/build output, disposable test data or unrelated changes staged. Original PRODUCT/PHASE_0/PHASE_1/PHASE_2, original migrations and lockfile unchanged. Disposable local cluster/binaries/credentials were stopped and removed after verification. This documentation-only follow-up records the verified implementation evidence; its own commit/CI are identifiable in repository history and the delivery response.
