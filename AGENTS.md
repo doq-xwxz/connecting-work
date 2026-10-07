@@ -4,7 +4,9 @@ Before business-logic changes, read in order: [PRODUCT.md](PRODUCT.md), [PHASE_0
 
 ## Current authorization
 
-Phase 1 is approved enough to continue; Phase 2 Authentication + Authorization foundation is authorized. Read PHASE_1.md and PHASE_2.md as evidence in addition to the context order above. Do not start Phase 3, add marketplace schemas/features or deploy. This phase's delivery stops for review; do not automatically push. PRODUCT and the approved Phase 0 record remain intact.
+Phase 1 is approved enough to continue; Phase 2 Authentication + Authorization foundation is authorized. Read PHASE_1.md and PHASE_2.md as evidence in addition to the context order above. Do not start Phase 3, add marketplace schemas/features or deploy. This phase's delivery stops for review. PRODUCT and the approved Phase 0 record remain intact.
+
+Standing user instruction (2026-10-07): after completing authorized changes and appropriate validation, automatically commit and push those changes to https://github.com/doq-xwxz/connecting-work on the current branch (currently main), without asking the user to repeat publication authorization. Verify the remote commit and relevant GitHub Actions results. Review the staged diff first; exclude credentials, local env, generated artifacts and unrelated changes. Do not force-push or rewrite history. Report any authentication, permission, remote conflict or CI blocker honestly. This instruction authorizes GitHub publication, not additional product scope or deployment.
 
 ## Boundaries
 
