@@ -20,17 +20,21 @@ enum AccountStatus {
 }
 
 model User {
-  id            String        @id
-  name          String
-  email         String        @unique
-  emailVerified Boolean       @default(false)
-  image         String?
-  status        AccountStatus @default(ACTIVE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  roles         UserRole[]
+  id                 String           @id
+  name               String
+  email              String           @unique
+  emailVerified      Boolean          @default(false)
+  image              String?
+  status             AccountStatus    @default(ACTIVE)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  sessions           Session[]
+  accounts           Account[]
+  roles              UserRole[]
+  workerProfile      WorkerProfile?
+  employerProfile    EmployerProfile?
+  companyMemberships CompanyMember[]
+  createdCompanies   Company[]        @relation("CompanyCreator")
 }
 
 model Session {
@@ -97,4 +101,160 @@ model RateLimit {
   key         String @unique
   count       Int
   lastRequest BigInt
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  TEMPORARY
+  FREELANCE
+  PROJECT
+  SHIFT
+  INTERNSHIP
+}
+
+enum WorkMode {
+  ON_SITE
+  REMOTE
+  HYBRID
+}
+
+enum EmployerType {
+  INDIVIDUAL
+  SHOP
+  STARTUP
+  SME
+  COMPANY
+  AGENCY
+}
+
+enum CompanyRole {
+  OWNER
+  MANAGER
+}
+
+enum CompanyVerification {
+  UNVERIFIED
+  VERIFIED
+}
+
+model Skill {
+  id        String        @id @default(uuid())
+  slug      String        @unique
+  name      String
+  category  String
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  workers   WorkerSkill[]
+
+  @@index([active, category])
+}
+
+model WorkerProfile {
+  id           String               @id @default(uuid())
+  userId       String               @unique
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  headline     String               @default("")
+  city         String?
+  bio          String               @default("")
+  timezone     String               @default("Asia/Ho_Chi_Minh")
+  discoverable Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  skills       WorkerSkill[]
+  preferences  WorkerPreference[]
+  workModes    WorkerWorkMode[]
+  availability WorkerAvailability[]
+
+  @@index([discoverable, city, id])
+}
+
+model WorkerSkill {
+  workerProfileId String
+  skillId         String
+  level           SkillLevel
+  worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+  skill           Skill         @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([workerProfileId, skillId])
+  @@index([skillId, workerProfileId])
+}
+
+model WorkerPreference {
+  workerProfileId String
+  type            EmploymentType
+  worker          WorkerProfile  @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+
+  @@id([workerProfileId, type])
+  @@index([type, workerProfileId])
+}
+
+model WorkerWorkMode {
+  workerProfileId String
+  mode            WorkMode
+  worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+
+  @@id([workerProfileId, mode])
+}
+
+model WorkerAvailability {
+  id              String        @id @default(uuid())
+  workerProfileId String
+  weekday         Int
+  startHour       Int
+  endHour         Int
+  worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([workerProfileId, weekday, startHour, endHour])
+  @@index([workerProfileId, weekday])
+}
+
+model EmployerProfile {
+  id          String       @id @default(uuid())
+  userId      String       @unique
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  type        EmployerType @default(INDIVIDUAL)
+  description String       @default("")
+  city        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Company {
+  id              String              @id @default(uuid())
+  slug            String              @unique
+  name            String
+  description     String              @default("")
+  city            String?
+  website         String?
+  verification    CompanyVerification @default(UNVERIFIED)
+  // Creation provenance and retry deduplication only; never an authorization grant.
+  createdByUserId String
+  createdBy       User                @relation("CompanyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  creationKey     String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  members         CompanyMember[]
+
+  @@unique([createdByUserId, creationKey])
+}
+
+model CompanyMember {
+  companyId String
+  userId    String
+  role      CompanyRole
+  joinedAt  DateTime    @default(now())
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, userId])
+  @@index([userId, companyId])
 }

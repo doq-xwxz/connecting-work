@@ -59,8 +59,8 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   const exited = once(child, "exit");
   let stage = "server readiness";
   let userId: string | undefined;
-  async function request(path: string, body?: object, cookie = "") {
-    return fetch(`${origin}${path}`, { method: body ? "POST" : "GET", redirect: "manual",
+  async function request(path: string, body?: object, cookie = "", method = body ? "POST" : "GET") {
+    return fetch(`${origin}${path}`, { method, redirect: "manual",
       headers: { origin, cookie, "x-forwarded-for": clientIp, "content-type": "application/json" },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60_000) });
   }
@@ -122,9 +122,68 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.deepEqual((await db.userRole.findMany({ where: { userId }, orderBy: { role: "asc" } })).map((row) => row.role), ["WORKER", "EMPLOYER"]);
     const rolesPage = await (await request("/account", undefined, cookie)).text();
     assert.ok(rolesPage.includes("WORKER, EMPLOYER"));
+    stage = "Phase 3 HTTP profiles and private discovery";
+    const api = "/api/marketplace";
+    assert.equal((await request(`${api}/worker`)).status, 401);
+    assert.equal((await request(`${api}/workers`)).status, 401);
+    assert.equal((await request(`${api}/workers`, undefined, cookie)).status, 403);
+    const skill = await db.skill.findUniqueOrThrow({ where: { slug: "excel" } });
+    const workerData = { headline: "HTTP Excel", city: "Hồ Chí Minh", bio: "Private summary", timezone: "Asia/Ho_Chi_Minh",
+      preferences: ["PART_TIME"], workModes: ["REMOTE"], skills: [{ skillId: skill.id, level: "INTERMEDIATE" }],
+      availability: [{ weekday: 1, startHour: 9, endHour: 12 }] };
+    const workerCreate = await request(`${api}/worker`, workerData, cookie);
+    assert.equal(workerCreate.status, 200);
+    const workerProfile = await workerCreate.json();
+    assert.equal(workerProfile.discoverable, false); assert.equal(workerProfile.completeness.complete, true);
+    assert.equal((await request(`${api}/worker`, workerData, cookie)).status, 409);
+    assert.equal((await request(`${api}/worker/${randomUUID()}`, workerData, cookie, "PUT")).status, 404);
+    assert.equal((await request(`${api}/worker/${workerProfile.id}`, { ...workerData, userId: "other" }, cookie, "PUT")).status, 400);
+    assert.equal((await request(`${api}/worker/${workerProfile.id}`, { ...workerData, headline: "Updated HTTP" }, cookie, "PUT")).status, 200);
+    const employerData = { type: "INDIVIDUAL", description: "HTTP employer", city: "Hồ Chí Minh" };
+    const employerCreate = await request(`${api}/employer`, employerData, cookie);
+    assert.equal(employerCreate.status, 200);
+    const employerProfile = await employerCreate.json();
+    assert.equal((await request(`${api}/employer`, employerData, cookie)).status, 409);
+    assert.equal((await request(`${api}/employer/${employerProfile.id}`, employerData, cookie, "PUT")).status, 200);
+    const discoveryPath = `${api}/workers?city=${encodeURIComponent("Hồ Chí Minh")}&skillId=${skill.id}&preference=PART_TIME`;
+    assert.equal((await (await request(discoveryPath, undefined, cookie)).json()).items.length, 0);
+    assert.equal((await request(`${api}/worker/${workerProfile.id}/discoverability`, { discoverable: true }, cookie, "PATCH")).status, 200);
+    const discovered = await (await request(discoveryPath, undefined, cookie)).json();
+    assert.equal(discovered.items.length, 1);
+    assert.deepEqual(Object.keys(discovered.items[0]).sort(), ["availability", "city", "displayName", "headline", "id", "preferences", "skills", "workModes"]);
+    assert.ok(!JSON.stringify(discovered).includes(email));
+    assert.equal((await request(`${api}/workers?limit=500`, undefined, cookie)).status, 400);
+    await db.userRole.delete({ where: { userId_role: { userId, role: "EMPLOYER" } } });
+    assert.equal((await request(discoveryPath, undefined, cookie)).status, 403);
+    await db.userRole.create({ data: { userId, role: "EMPLOYER", grantedBy: "http-fixture" } });
+    for (const path of ["/worker/profile", "/worker/profile/edit", "/employer/profile", "/employer/profile/edit", "/employer/workers", "/employer/companies", "/employer/companies/new"]) {
+      const page = await request(path, undefined, cookie); assert.equal(page.status, 200); assert.equal(page.headers.get("referrer-policy"), "no-referrer");
+    }
+    stage = "Phase 3 HTTP company ownership and allowlists";
+    const companyData = { name: "HTTP company", description: "Foundation", city: "Hồ Chí Minh", website: null };
+    const creationKey = randomUUID();
+    const companyCreate = await request(`${api}/companies`, { ...companyData, creationKey }, cookie);
+    assert.equal(companyCreate.status, 200);
+    const company = await companyCreate.json();
+    assert.equal(company.verification, "UNVERIFIED"); assert.equal(company.role, "OWNER");
+    assert.equal((await (await request(`${api}/companies`, { ...companyData, creationKey }, cookie)).json()).id, company.id);
+    assert.equal((await request(`${api}/companies/${company.slug}`, undefined, cookie)).status, 200);
+    assert.equal((await request(`/employer/companies/${company.slug}`, undefined, cookie)).status, 200);
+    assert.equal((await request(`${api}/company/${company.id}`, { ...companyData, name: "Updated company" }, cookie, "PUT")).status, 200);
+    assert.equal((await request(`${api}/company/${company.id}`, { ...companyData, verification: "VERIFIED" }, cookie, "PUT")).status, 400);
+    assert.equal((await request(`${api}/company/${company.id}/members`, {}, cookie)).status, 404);
+    const members = await (await request(`${api}/company/${company.id}/members`, undefined, cookie)).json();
+    assert.deepEqual(members.items, [{ memberId: userId, displayName: "HTTP verification", role: "OWNER" }]);
+    assert.equal((await request(`${api}/company/${company.id}/members/${userId}`, {}, cookie, "DELETE")).status, 409);
+    const crossOrigin = await fetch(`${origin}${api}/worker`, { method: "POST", headers: { origin: "https://other.invalid", cookie, "content-type": "application/json" }, body: JSON.stringify(workerData) });
+    assert.equal(crossOrigin.status, 403);
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
     assert.equal((await request("/api/account/roles", { role: "WORKER" }, cookie)).status, 403);
+    assert.equal((await request(`${api}/worker/${workerProfile.id}`, workerData, cookie, "PUT")).status, 403);
+    assert.equal((await request(`${api}/company/${company.id}`, companyData, cookie, "PUT")).status, 403);
+    assert.equal((await request(discoveryPath, undefined, cookie)).status, 403);
+    assert.equal((await request(`${api}/worker/${workerProfile.id}/discoverability`, { discoverable: false }, cookie, "PATCH")).status, 200);
     assert.equal((await request("/account", undefined, cookie)).status, 200);
     await db.user.update({ where: { id: userId }, data: { status: "ACTIVE" } });
     assert.equal((await request("/api/auth/sign-out", {}, cookie)).status, 200);
@@ -141,7 +200,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP signup/verification/login/account/dual roles/ADMIN rejection/suspension/logout/reset/revocation; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2 auth regression and Phase 3 profiles/discovery/privacy/company/owner/origin/status checks; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;
@@ -153,6 +212,11 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     try {
       userId ??= (await db.user.findUnique({ where: { email }, select: { id: true } }))?.id;
       if (userId) {
+        const companyIds = (await db.company.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
+        await db.companyMember.deleteMany({ where: { companyId: { in: companyIds } } });
+        await db.company.deleteMany({ where: { id: { in: companyIds } } });
+        await db.workerProfile.deleteMany({ where: { userId } });
+        await db.employerProfile.deleteMany({ where: { userId } });
         await db.verification.deleteMany({ where: { value: userId } });
         await db.userRole.deleteMany({ where: { userId } });
         await db.user.delete({ where: { id: userId } });

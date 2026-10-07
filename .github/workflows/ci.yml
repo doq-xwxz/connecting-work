@@ -63,4 +63,5 @@ jobs:
       - run: pnpm db:status
       - run: pnpm db:smoke
       - run: pnpm test:integration
+      - run: pnpm test:profiles
       - run: pnpm test:http

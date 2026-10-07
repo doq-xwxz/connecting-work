@@ -2,11 +2,11 @@
 
 Tìm đúng việc. Gặp đúng người.
 
-Phase 2 authentication and authorization foundation for a Vietnamese job marketplace. Email/password signup, verification, reset, account/session handling and controlled Worker/Employer role activation are implemented. Marketplace profiles/jobs/hiring do not exist yet. [PRODUCT.md](PRODUCT.md) is product source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture and deferred decisions. Stop after Phase 2 review; Phase 3 is not authorized.
+Phase 3 profile and company foundation for a Vietnamese job marketplace. Verified email/password accounts and dual Worker/Employer roles support separate profiles, controlled skills, weekly availability, opt-in private employer discovery and Company OWNER/MANAGER authorization. Jobs and hiring are not implemented. [PRODUCT.md](PRODUCT.md) remains product source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture and deferred decisions. Phases 0–2 are approved and Phase 2 is closed. Stop after Phase 3 review; Phase 4 and deployment are not authorized.
 
 ## Documentation
 
-[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md)
+[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md) · [Phase 3 review](PHASE_3.md)
 
 ## Local setup
 
@@ -26,6 +26,8 @@ Staging/production: set an explicit HTTPS APP_URL, a random secret of at least 3
 
 ## Checks
 
+After login and role activation, use `/worker/profile` (also `/edit`) for your WorkerProfile and discoverability toggle, `/employer/profile` (also `/edit`) for your personal EmployerProfile, `/employer/workers` for private discovery, and `/employer/companies`, `/new`, `/[companySlug]` for current company membership. Create an EmployerProfile before discovery/company creation. Worker discoverability defaults off. OWNER can inspect members/remove MANAGER; MANAGER can edit company details. No member-add/invitation/ownership-transfer, upload or company-verification action exists.
+
 ```text
 pnpm db:validate
 pnpm lint
@@ -37,7 +39,7 @@ pnpm start
 
 Typecheck/build generate the Prisma client first; typecheck also runs Next typegen so a clean checkout does not require prior dev/build output. `pnpm db:smoke` reports BLOCKED (exit 2) without DATABASE_URL; it is a database integration probe, not a fake passing unit test. `pnpm db:migrate --name <change>` creates/applies development migrations; `pnpm db:deploy` only applies committed SQL to an operator-selected database. These commands do not deploy the website. Never reset shared/production data.
 
-CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a separate fresh PostgreSQL 18 service for migrations, DB smoke, auth integration and actual Next HTTP verification; no deployment or production/provider secrets. Both `pnpm test:integration` and `pnpm test:http` require TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. They exercise real Better Auth/Prisma with test-only mail transport and clean up their own fixtures. The HTTP harness starts/stops its development server automatically. Real local PostgreSQL/auth/HTTP checks passed; evidence and remaining deployment-specific limits are in PHASE_2. FoundationCheck has been removed through a migration after its replacement coverage passed. No large browser E2E dependency was added.
+CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a fresh PostgreSQL 18 service for all committed migrations, DB smoke, `pnpm test:integration` (Phase 2 auth), `pnpm test:profiles` (Phase 3 services/constraints/real lock races), and `pnpm test:http` (actual Next auth and profile/company HTTP). All three integration commands require explicit TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. Scope DATABASE_URL/DIRECT_DATABASE_URL to the same disposable endpoint for migration/smoke commands; never use production. Tests clean up only their own fixtures. The HTTP child starts/stops automatically and intercepts only email transport. No browser E2E dependency, deployment or production/provider secret was added. See PHASE_3 for current evidence; PHASE_2 remains the approved historical report.
 
 ## Dependencies and boundaries
 

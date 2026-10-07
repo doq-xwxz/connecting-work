@@ -4,7 +4,7 @@ Before business-logic changes, read in order: [PRODUCT.md](PRODUCT.md), [PHASE_0
 
 ## Current authorization
 
-Phase 2 implementation and real PostgreSQL/auth closure verification are authorized. Read PHASE_1.md and PHASE_2.md as evidence in addition to the context order above. Phase 2 requires real migrations, DB smoke, auth integration and HTTP flow evidence before closure. Stop for Phase 2 closure review; do not start Phase 3, add marketplace schemas/features or deploy. PRODUCT and the approved Phase 0 record remain intact.
+Phases 0–2 are approved and Phase 2 is closed. Phase 3 WorkerProfile, EmployerProfile, skills, availability, private employer discovery and Company/OWNER-MANAGER foundation are authorized. Read PHASE_1.md/PHASE_2.md and PHASE_3.md as evidence. Stop after Phase 3 review; do not implement Jobs, hiring, matching, messaging, uploads, moderation or Phase 4, and do not deploy. PRODUCT and approved historical phase reports remain intact.
 
 Standing user instruction (2026-10-07): after completing authorized changes and appropriate validation, automatically commit and push those changes to https://github.com/doq-xwxz/connecting-work on the current branch (currently main), without asking the user to repeat publication authorization. Verify the remote commit and relevant GitHub Actions results. Review the staged diff first; exclude credentials, local env, generated artifacts and unrelated changes. Do not force-push or rewrite history. Report any authentication, permission, remote conflict or CI blocker honestly. This instruction authorizes GitHub publication, not additional product scope or deployment.
 
@@ -22,7 +22,7 @@ Normal Worker/Employer roles coexist; ADMIN is trusted operational provision onl
 
 ## Scope and decisions
 
-Phase 2 permits only Better Auth email/password/verification/reset, DB-backed sessions, identity roles/status, guarded account UI and reusable server authorization. No social providers, marketplace domain schema, outbox, enterprise capabilities, general document management, malware pipeline, WebSockets, Redis, microservices, external search, payments or AI. ADMIN must never be accepted from user input. D1–D9 remain deferred except previously recorded runtime choices. Suspended authentication is distinct from permission to create activity; future active-obligation checks belong to resource services. Do not invent BANNED semantics beyond scoped fail-closed guards. Production origins/secrets come from deployment env; never depend on the operator PC.
+Phase 3 resolves only required D1 taxonomy/work preferences/weekly availability/completeness and D3 discovery defaults/coarse DTOs. Discovery defaults off; requires current EMPLOYER + EmployerProfile, with no ADMIN bypass. Company ownership derives from current membership, never creator provenance. Every sensitive mutation locks/rechecks User, then Company where relevant; membership removal uses that same Company lock. No public member-add/invitation/ownership-transfer flow; protect final OWNER. No social providers, Jobs/hiring/matching, outbox, enterprise RBAC, documents, WebSockets, Redis, microservices, external search, payments or AI. SUSPENDED/BANNED fail closed for new activity; privacy opt-out remains permitted. Production origins/secrets come from env, with no operator-PC dependency.
 
 ## Validation and delivery
 
