@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Connecting Work — Foundation",
+  title: "Connecting Work",
   description: "Nền tảng dự án Connecting Work. Sản phẩm đang được phát triển.",
 };
 

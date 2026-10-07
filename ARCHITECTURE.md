@@ -1,6 +1,6 @@
 # Architecture
 
-Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phase 1 is a local Foundation, not a launched marketplace.
+Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phase 2 adds identity and account access; the marketplace is not launched.
 
 ## Approved direction
 
@@ -10,7 +10,15 @@ Next.js App Router + TypeScript strict + PostgreSQL/Prisma, Tailwind/shadcn, mod
 
 `src/app` contains server-rendered root layout and honest placeholder. `src/components/ui` documents shadcn manual setup; tokens/config/utils exist, no unused primitive set. `src/modules/README.md` defines future module API boundary, no domain files. `src/shared/config` contains Zod env parsing and server-only env reader; `shared/db/client.ts` is lazy/server-only with hot-reload reuse and bounded pg pool; `shared/errors` provides client-safe categories; `shared/logging` fixed-field JSON events; `shared/ui` class merging. `scripts/db-smoke.ts` is an operator-only check, not an HTTP endpoint.
 
-App UI/build require no DB or future-provider env. DB initialization validates its config when actually requested. No secrets are read in Client Components. Local system fonts avoid build-time remote downloads. No middleware pretending auth exists.
+Public UI/build require no DB or provider env. Actual auth validates runtime config lazily. No secrets are read in Client Components. Local system fonts avoid build-time remote downloads. No middleware pretending auth exists.
+
+## Phase 2 implementation
+
+`modules/auth` owns a server-only Better Auth factory/entrypoint, strict HTTP boundary, session-to-current-principal service, controlled normal-role grants and pure policy/config helpers. The app uses same-origin POST fetches against the Better Auth HTTP handler; it does not implement its own credential/session protocol. `shared/email` defines the auth-mail interface and native-fetch Resend adapter. Only tests use fake in-memory delivery. Next `after` retains provider background work on managed hosts; failures produce only a fixed safe event. No notification/outbox service exists.
+
+Authentication uses PostgreSQL sessions with cookie cache disabled. Each protected account request validates a real session and reads current roles/status from the DB. Role activation derives user ID from that session and locks/rechecks User in a transaction before idempotent upsert. Policies distinguish authenticated account access, any-of role checks, verified email and ACTIVE new-activity eligibility. Future ownership/company/resource-state checks remain in their owning services, not a speculative permission engine. ADMIN has no public grant path; BANNED full semantics remain D5.
+
+The public auth endpoint surface is explicitly allowlisted. Verification email links open a page with a token fragment; user confirmation POST invokes Better Auth's internal verification handler. No public mutating verification GET, token URL access logs, external redirect input or raw auth result DTO. `/account` is dynamic/server-checked; UI redirects and disabled controls are UX only. Production uses explicit HTTPS APP_URL, injected secret and cloud PostgreSQL; `pnpm start` has no loopback binding assumption. Full DB/browser auth evidence remains blocked until a disposable endpoint exists; see [PHASE_2](PHASE_2.md).
 
 ## Future boundaries — design proposal
 

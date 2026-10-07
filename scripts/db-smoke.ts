@@ -30,7 +30,11 @@ async function main() {
     console.error("FAIL: Database smoke failed. Check PostgreSQL availability, DATABASE_URL, TLS settings and applied migrations. Internal details/credentials suppressed.");
     process.exitCode = 1;
   } finally {
-    await db?.$disconnect();
+    try { await db?.$disconnect(); }
+    catch {
+      console.error("FAIL: Database disconnect failed. Internal details/credentials suppressed.");
+      process.exitCode = 1;
+    }
   }
 }
 

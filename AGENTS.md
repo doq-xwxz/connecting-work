@@ -4,7 +4,7 @@ Before business-logic changes, read in order: [PRODUCT.md](PRODUCT.md), [PHASE_0
 
 ## Current authorization
 
-Phase 1 Foundation only is authorized. Do not proceed to Phase 2 or implement marketplace features without a new user instruction. Foundation covers app/tooling, minimal PostgreSQL/Prisma setup, validation/errors/logger/tests/CI and documentation. No deployment or push is implied. PRODUCT and the approved Phase 0 record remain intact.
+Phase 1 is approved enough to continue; Phase 2 Authentication + Authorization foundation is authorized. Read PHASE_1.md and PHASE_2.md as evidence in addition to the context order above. Do not start Phase 3, add marketplace schemas/features or deploy. This phase's delivery stops for review; do not automatically push. PRODUCT and the approved Phase 0 record remain intact.
 
 ## Boundaries
 
@@ -20,8 +20,10 @@ Normal Worker/Employer roles coexist; ADMIN is trusted operational provision onl
 
 ## Scope and decisions
 
-Do not build auth flows, domain schemas, outbox, enterprise capabilities, general document management, malware pipeline, WebSockets, Redis, microservices, external search, payments or AI during Foundation. No CV/identity/business document uploads V1. D1–D9 are deferred; do not silently approve them. Legal durations and phone provider are not Foundation blockers. Add each infrastructure item only when an authorized phase needs it.
+Phase 2 permits only Better Auth email/password/verification/reset, DB-backed sessions, identity roles/status, guarded account UI and reusable server authorization. No social providers, marketplace domain schema, outbox, enterprise capabilities, general document management, malware pipeline, WebSockets, Redis, microservices, external search, payments or AI. ADMIN must never be accepted from user input. D1–D9 remain deferred except previously recorded runtime choices. Suspended authentication is distinct from permission to create activity; future active-obligation checks belong to resource services. Do not invent BANNED semantics beyond scoped fail-closed guards. Production origins/secrets come from deployment env; never depend on the operator PC.
 
 ## Validation and delivery
 
-Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; `pnpm db:validate` validates schema without DB. For a configured disposable PostgreSQL use documented migration+smoke commands, never a production URL or SQLite. Report missing DB as BLOCKED. Review all new files (initial repository has no commit), ignored secret paths, dependency changes and git diff. Never commit generated clients, credentials, local env or test data. Update docs when architecture or verified setup changes. Stop at the authorized phase and report remaining issues.
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; `pnpm db:validate` validates schema without DB. For a configured disposable PostgreSQL use documented migration+smoke commands and `pnpm test:integration`, never a production URL or SQLite. Report missing DB as BLOCKED. Review tracked and new files, ignored secret paths, dependency changes and git diff. Never commit generated clients, credentials, local env or test data. Update docs when architecture or verified setup changes. Stop at the authorized phase and report remaining issues.
+
+Auth entrypoints, factory and DB services are server-only. Real session checks and fresh role/status reads authorize each request; role activation rechecks status under a PostgreSQL row lock. Future moderation must lock that same user row. Keep strict input/origin/endpoint allowlists; public auth GET routes must not mutate identity. Auth mail tokens use URL fragments and POST confirmation; never add token logging or production in-memory email/session persistence. Integration tests require explicit TEST_DATABASE_URL + AUTH_TEST_DATABASE=disposable and committed migrations. Keep trusted ADMIN provisioning operational and reviewed, never expose a grant API.

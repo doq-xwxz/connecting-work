@@ -2,11 +2,11 @@
 
 Tìm đúng việc. Gặp đúng người.
 
-Phase 1 Foundation for a Vietnamese job marketplace. The only application screen is an honest placeholder; no authentication or marketplace features exist yet. [PRODUCT.md](PRODUCT.md) is product source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture and remaining deferred decisions. Do not start Phase 2 automatically.
+Phase 2 authentication and authorization foundation for a Vietnamese job marketplace. Email/password signup, verification, reset, account/session handling and controlled Worker/Employer role activation are implemented. Marketplace profiles/jobs/hiring do not exist yet. [PRODUCT.md](PRODUCT.md) is product source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture and deferred decisions. Stop after Phase 2 review; Phase 3 is not authorized.
 
 ## Documentation
 
-[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 validation](PHASE_1.md)
+[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md)
 
 ## Local setup
 
@@ -18,7 +18,11 @@ pnpm db:generate
 pnpm dev
 ```
 
-Open http://127.0.0.1:3000. The placeholder and build need no DB, auth secret, email, storage, analytics or monitoring service. `.env.example` documents ignored `.env.local`/process env and future categories; do not uncomment unused integrations. No real secrets are supplied. DB smoke needs your own disposable PostgreSQL DATABASE_URL and applied migrations; see [DATABASE](DATABASE.md). No SQLite or production infrastructure provisioning.
+Open http://127.0.0.1:3000. Public pages/build need no runtime credentials. For working auth, configure ignored .env.local or hosting env: DATABASE_URL, APP_URL, BETTER_AUTH_SECRET, EMAIL_PROVIDER=resend, RESEND_API_KEY and EMAIL_FROM. BETTER_AUTH_URL is optional and must match APP_URL if supplied; DIRECT_DATABASE_URL optionally selects an unpooled migration endpoint. Apply committed migrations before using auth. No real secrets are supplied. Missing auth/provider config fails safely when used. No SQLite or infrastructure provisioning. See [DATABASE](DATABASE.md) and [SECURITY](SECURITY.md).
+
+Routes: /sign-up, /sign-in, /verify-email, /forgot-password, /reset-password and protected /account. Verify email before sign-in; choose one/both normal roles on account after login. ADMIN is trusted operational provisioning only, never a form option. Verification/reset mail links use fragments and POST confirmation; do not copy tokens into logs/issues. For manual local tests, use a sender and recipient controlled by the operator. Automated tests use a fake email provider, never real email.
+
+Staging/production: set an explicit HTTPS APP_URL, a random secret of at least 32 characters, managed PostgreSQL with verified TLS/provider pooling, and configured email sender. Preview branches need their own explicit origin, isolated database and secrets; no automatic trust of arbitrary Vercel hosts. Managed hosts inject env. pnpm start respects managed PORT/binding defaults; only pnpm dev intentionally binds loopback. No identity/session data lives on the operator's filesystem or in process memory. On Vercel use the Node runtime, align DB region and verify trusted proxy IP/rate-limit behavior. Email work uses Next after, which the managed Next host must support. No deployment occurs here.
 
 ## Checks
 
@@ -33,8 +37,8 @@ pnpm start
 
 Typecheck/build generate the Prisma client first; typecheck also runs Next typegen so a clean checkout does not require prior dev/build output. `pnpm db:smoke` reports BLOCKED (exit 2) without DATABASE_URL; it is a database integration probe, not a fake passing unit test. `pnpm db:migrate --name <change>` creates/applies development migrations; `pnpm db:deploy` only applies committed SQL to an operator-selected database. These commands do not deploy the website. Never reset shared/production data.
 
-CI runs frozen install, schema validation, lint, typecheck, unit tests, build. No deployment or meaningless DB service without configured integration tests. PostgreSQL integration test convention is in DATABASE; full browser E2E harness is deferred until real features exist. Local preview verification evidence is recorded in PHASE_1.
+CI runs frozen install, schema validation, lint, typecheck, unit tests, build; no deployment. See GitHub Actions for the published revision's remote checks; PHASE_2 records implementation-time evidence. `pnpm test:integration` requires TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. It exercises real Better Auth/Prisma and fake mail. Live DB/auth E2E remains BLOCKED until configured; default CI is offline while this suite awaits its first real DB run. No large browser E2E dependency was added. Local UI and failure-path evidence is in PHASE_2.
 
 ## Dependencies and boundaries
 
-Next/React render the app; TypeScript/ESLint check it (@next/eslint-plugin-next and typescript-eslint directly, avoiding incompatible eslint-config-next peers); Tailwind/PostCSS and minimal shadcn config/classes establish styles. Prisma/client/adapter-pg/pg connect PostgreSQL, server-only protects imports; Zod validates runtime env/future inputs; Vitest runs meaningful safety tests; tsx executes the TypeScript DB probe; @next/env shares Next env precedence with CLI. clsx/tailwind-merge/tw-animate-css are the minimal shadcn manual helpers. No auth/provider/domain dependencies installed.
+Next/React render the app; TypeScript/ESLint check it (@next/eslint-plugin-next and typescript-eslint directly); Tailwind/PostCSS and minimal shadcn config/classes establish styles. Prisma/client/adapter-pg/pg connect PostgreSQL; server-only protects imports; Zod validates explicit boundaries; Vitest runs safety tests; tsx runs DB/auth probes; @next/env shares env precedence. Better Auth 1.7.7 and @better-auth/prisma-adapter 1.7.7 add auth only. Resend adapter uses native fetch without another SDK dependency. No social login, business provider or marketplace domain dependency is installed.

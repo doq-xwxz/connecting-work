@@ -1,4 +1,4 @@
-name: Foundation CI
+name: Repository checks
 on:
   push:
   pull_request:

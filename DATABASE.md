@@ -10,6 +10,12 @@ PostgreSQL only, Prisma 7 with pg driver adapter and generated TypeScript client
 
 ## Local migration workflow
 
+Phase 2 adds User, Session, Account, Verification, UserRole, RateLimit and Role/AccountStatus enums in `20261007010000_auth`. No marketplace table is introduced. Better Auth owns password hashing, session tokens and verification/reset lifecycle. User.status is server-owned; roles are a separate compound-primary-key relation, never a user-editable Better Auth field. UserRole.grantedBy records the opaque self-actor or operational change reference. RateLimit is DB-backed for cross-instance counters. Session/Account cascade only auth credentials on actual User deletion; UserRole restricts deletion. Public account-deletion APIs are not enabled; future historical domain relations must not cascade away.
+
+FoundationCheck is retained temporarily because the live DB smoke has never passed and still provides a credential-free rollback probe independent of auth setup. It is not a permanent business table. Remove it with a separate reviewed migration after real auth integration coverage passes; no reset/drop is performed in Phase 2.
+
+The auth SQL was generated offline from the committed Phase 1 schema to current schema and reviewed for additive-only changes. Re-generating it produces the same SQL. Applying it and checking live migration status remain BLOCKED without PostgreSQL. An offline SQL comparison does not prove live migration validity.
+
 Use a **disposable local/development PostgreSQL database** supplied by its operator; `.env.example` contains commented placeholders, not working credentials. Store the actual DATABASE_URL in ignored `.env.local` or process env. If the migration endpoint must be direct, set DIRECT_DATABASE_URL too. Do not use production credentials.
 
 1. `pnpm install --frozen-lockfile`
@@ -30,4 +36,6 @@ Future FKs/checks/partial indexes/lock ordering are design proposals in PHASE_0,
 
 ## Integration test convention
 
-Use actual PostgreSQL, never SQLite. Future DB tests in `tests/integration/*.test.ts` must be opt-in under a separate command, validate an explicitly disposable TEST_DATABASE_URL, apply committed migrations, isolate fixtures/transactions, and disconnect. No fake business DB tests or empty CI service now. Foundation `db:smoke` is real but blocked until operator provides PostgreSQL URL. Unit tests do not import/instantiate DB. Concurrency tests later must exercise independent real connections; rollback isolation alone cannot prove locking.
+Use actual PostgreSQL, never SQLite. Phase 2 provides `pnpm test:integration` through scripts/auth-integration.ts. Configure TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable explicitly; DATABASE_URL is never silently reused. Apply committed migrations to that same disposable database first (`pnpm db:deploy`, with DATABASE_URL/DIRECT_DATABASE_URL scoped to that disposable endpoint), then `pnpm db:status`. Never point these at production. The test generates random transient account/password data, uses Better Auth + real Prisma/PostgreSQL and fake mail delivery, and cleans up only its own users/roles/verification records. Rate-limit counters remain, so repeat runs within one minute may be throttled. It never resets the DB and never prints tokens/URLs/provider bodies. No real email is sent.
+
+Coverage authored: signup, verification/expired token, login/fixation, DB session persistence, dual roles/concurrent duplicate grants, ADMIN rejection, fresh suspension checks, logout/session reuse, reset/expiry/reuse and reset-session revocation. This suite is BLOCKED until a disposable endpoint is supplied; authored tests are not a claimed PASS. The default CI remains offline because the suite has not yet been exercised against the operator's isolated PostgreSQL environment. Keep it separate until that first real run; then a PostgreSQL CI job can run the same command without production/provider secrets. Future business DB suites may use tests/integration; locking tests need independent real connections. Unit tests do not instantiate DB.

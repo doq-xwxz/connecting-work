@@ -6,8 +6,8 @@
 |---|---|---|---|
 | 0 | Planning and review | Approved product/architecture and deferred register | Complete |
 | 1 | Foundation, user authorized | App/tooling, governance, env/DB client, minimal probe migration/smoke, safe errors/logs, unit/CI, honest shell. Install/lint/typecheck/tests/build; DB separately verified or explicitly blocked | See PHASE_1.md for evidence/remaining issues |
-| 2 | Auth/authorization after 1 review | Better Auth email/password/verify/reset, dual roles, operational admin, scoped suspension; auth/negative tests | Not authorized |
-| 3 | Profiles/company after 2; D1 data/D3 | Structured profiles/privacy/availability, OWNER/MANAGER, minimum apply completeness, avatar/logo only if needed; DTO/revocation tests | Planned |
+| 2 | Auth/authorization, user authorized after 1 review | Better Auth email/password/verify/reset, dual roles, trusted admin provisioning procedure, scoped status guards; unit/security checks, authored PostgreSQL suite | Implemented locally; DB/full auth E2E blocked; awaiting review, see PHASE_2.md |
+| 3 | Profiles/company after 2; D1 data/D3 | Structured profiles/privacy/availability, OWNER/MANAGER, minimum apply completeness, avatar/logo only if needed; DTO/revocation tests | Not authorized |
 | 4 | Jobs after 3; D2 | Structured draft, lifecycle/material-lock/duplicate/atomic quota; race/state tests | Planned |
 | 5 | Hiring after 4; D2 | Application/immutable offer revisions/atomic accept/engagement/dispute; capacity, unique, snapshots and E2E | Planned |
 | 6 | Search/matching after data/hiring; D1/D3 | PG FTS/filters/score+coverage/opt-in discovery; normalization/privacy/performance tests | Planned |
