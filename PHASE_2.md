@@ -6,7 +6,7 @@ Publication follow-up (2026-10-07): after the local handoff, the user explicitly
 
 Initial inspection: clean main at f3ae681 (`chore: add Connecting Work foundation`), tracking origin/main on https://github.com/doq-xwxz/connecting-work.git. Existing Prisma 7/PostgreSQL/server-only boundaries and CI preserved. PHASE_1 is a historical report; its earlier untracked/no-commit/no-remote-run state was subsequently superseded by the user's GitHub synchronization. No approved product contradiction was found. Prior AGENTS Phase 1 restriction was superseded by explicit Phase 2 authorization and updated accordingly.
 
-Implemented is distinct from verified: offline/local checks pass, but live PostgreSQL/auth flows remain BLOCKED. No auth success on a real database is claimed.
+At the initial implementation handoff, live PostgreSQL/auth flows were BLOCKED. The subsequent closure verification below supersedes those blockers with real disposable PostgreSQL and Next HTTP evidence; earlier inspection and delivery facts remain historical.
 
 # 2. Versions / dependencies added or changed
 
@@ -76,18 +76,18 @@ Rate limiting explicitly uses PostgreSQL with per-endpoint windows, not process 
 | Build | PASS | Production compiled/types/prerender; public auth pages static, account/API dynamic; no runtime credentials needed |
 | Prisma validation | PASS | Schema valid, generated client succeeds |
 | Migration offline verification | PASS | Regenerated auth SQL equals reviewed migration; additive-only source review |
-| DB migration deploy/status | BLOCKED | No DATABASE_URL or disposable PostgreSQL endpoint; no live application claimed |
-| DB smoke | BLOCKED | db:smoke reports missing DATABASE_URL, exit 2 |
-| DB integration | BLOCKED | test:integration reports TEST_DATABASE_URL + AUTH_TEST_DATABASE=disposable missing, exit 2 |
-| Auth E2E (signup→verify→login→account→logout) | BLOCKED | No database/provider runtime config; no fake success or SQLite |
+| DB migration deploy/status | PASS | Closure: Foundation/Auth applied to fresh PostgreSQL 18.6, cleanup applied afterward, status up to date; previously BLOCKED at handoff |
+| DB smoke | PASS | Real migration-backed CRUD/rollback passed before and after FoundationCheck removal; previously BLOCKED |
+| DB integration | PASS | Real PostgreSQL suite passed before/after cleanup; expiry/replay/revocation/roles/limits checked; previously BLOCKED |
+| Auth E2E (signup→verify→login→account→logout/reset) | PASS | Actual Next HTTP routes/pages + real DB, test-only mail transport; previously BLOCKED; not a full browser automation claim |
 | Browser UI/failure-path check | PASS | Signup layout visually inspected; forgot-password POST 503 produced safe UI message; token-fragment confirmation page displayed and removed fragment from address |
 | Production HTTP/headers | PASS | All five public auth pages HTTP 200; verification/reset no-referrer + no-store; missing-config auth POST 503 with constant safe message |
 | Remote GitHub Actions, existing Foundation commit | PASS | Run 37587454640, f3ae681, completed/success; every install/schema/lint/types/unit/build step success; workflow active |
-| Remote GitHub Actions, current Phase 2 diff | BLOCKED | Changes not pushed; no Phase 2 remote run exists yet |
+| Remote GitHub Actions, Phase 2 implementation | PASS | a22f968, run 37591825052 completed/success after publication; closure revision checked separately after push |
 
 Unit checks cover dual roles/ADMIN rejection/mass assignment, verified state/status guard, exact origins, unsafe redirects, strict signup and token input, body limits, safe HTTP payloads including session projection, provider-error non-disclosure and existing error/logger safety tests. They do not prove real session/logout/token consumption behavior.
 
-`scripts/auth-integration.ts` authors real PostgreSQL + Better Auth checks: signup/duplicate signup, verification/expired signature, login/fixation/cookie attributes, session persistence across auth objects, concurrent duplicate role activation, ADMIN rejection, stale-principal suspension guard, logout reuse, reset expiry/reuse/session revocation and generic unknown-account response. Credentials are randomly generated in test memory and not printed. Fixture cleanup/disconnect errors are safely suppressed and marked failure. This suite has not run against a DB and is not reported PASS.
+`scripts/auth-integration.ts` verifies real PostgreSQL + Better Auth checks: signup/duplicate signup, verification/expired signature, login/fixation/cookie attributes, session persistence across auth objects, concurrent duplicate role activation, ADMIN rejection, stale-principal suspension guard, logout reuse, reset expiry/reuse/session revocation and generic unknown-account response. Credentials are randomly generated in test memory and not printed. Fixture cleanup/disconnect errors are safely suppressed and marked failure. The suite subsequently passed on real PostgreSQL during closure, including persisted rate-limit enforcement and hashed reset identifier/consumption assertions.
 
 No large browser E2E framework added while live auth is blocked. CI retains meaningful offline checks, no deploy/production secrets. PostgreSQL suite remains separate pending its first real isolated run; DATABASE documents how to enable it. GitHub Actions investigation used public read-only API for workflows/run/jobs; events push/pull_request are valid and workflow active. No unrelated repo settings changed. [Verified Foundation run](https://github.com/doq-xwxz/connecting-work/actions/runs/37587454640).
 
@@ -113,10 +113,61 @@ FoundationCheck retained with a removal criterion. Real database verification/E2
 
 # 13. Remaining blockers
 
-Runtime auth needs DATABASE_URL, APP_URL, BETTER_AUTH_SECRET and configured email delivery (EMAIL_PROVIDER=resend, RESEND_API_KEY, EMAIL_FROM); all absent here. DIRECT_DATABASE_URL optional. Tests additionally require TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable with the committed migrations applied to that dedicated DB. Do not supply production DB for testing. Full session/token/DB behaviors and real mail delivery are unverified, and current Phase 2 remote CI awaits explicit publication. These are reported, not bypassed.
+At initial handoff all runtime credentials were absent and DB/auth checks were blocked. Closure supplied a dedicated disposable PostgreSQL test environment and synthetic test-only mail configuration; real DB/session/token/HTTP behaviors now passed. Real Resend delivery, a deployed cloud provider's TLS/transaction-pool settings and managed-host proxy/IP forwarding remain deployment-specific checks. No production credentials or deployment were used. See closure evidence below.
 
 Deferred: Phase 3 profiles/company and every marketplace feature; resource ownership/membership/state and active-Engagement policy; full BANNED semantics D5; durable notifications/outbox; admin moderation/dashboard/business audit; social providers; deployment. No auto-continuation.
 
 # 14. Git diff summary
 
 47 changed paths: 16 tracked modifications and 31 new files, no deletions. Initial tracked base is f3ae681 on main, origin unchanged. PRODUCT.md, PHASE_0.md and PHASE_1.md have no diff. Reviewed auth/schema/config/UI/test/docs changes, dependency scope, additive migration SQL and ignored credentials/artifacts. Tracked and new-file whitespace checks pass after line-ending normalization. No secrets or generated/build outputs are staged. No commit, push, history rewrite or deployment in this phase. Stop here for review.
+
+# 15. Real PostgreSQL / auth closure verification — 2026-10-07
+
+## Environment and inspection
+
+Started from clean main at da4cd39a6153369284e7299fc9b3892e3d012340. Read PRODUCT, PHASE_0, architecture, PHASE_1, PHASE_2, AGENTS, DATABASE and SECURITY. PRODUCT/PHASE_0/PHASE_1 remain unchanged. No Phase 3 work or website deployment.
+
+Used a fresh disposable PostgreSQL 18.6 cluster from [EDB's Windows binary archive](https://www.enterprisedb.com/download-postgresql-binaries), stored only in ignored .tmp, loopback-bound and protected by a random password. No installed system service, production data, SQLite or cloud-account provisioning. DATABASE_URL/DIRECT_DATABASE_URL/TEST_DATABASE_URL were scoped to this test database; AUTH_TEST_DATABASE=disposable was explicit. Runtime tests used PrismaPg's bounded connection pool. This verifies real PostgreSQL, not Neon/PgBouncer-specific TLS or transaction pooling. Cloud runtime must use a provider pooled URL, migrations its direct URL, and tests a separate disposable database/branch.
+
+## Migrations, schema and FoundationCheck
+
+PASS: Foundation and Auth migrations applied cleanly to the fresh database, db:status reported up to date, and original FoundationCheck CRUD smoke passed. Auth integration also passed before cleanup. Only then removed the model and applied 20261007020000_remove_foundation_check (DROP TABLE FoundationCheck only). No reset or change to either original migration. Updated db:smoke to roll back transient User CRUD/default checks; reran DB/auth checks successfully. Live Prisma schema diff reported no difference. Resulting public tables: User, Session, Account, Verification, UserRole, RateLimit and _prisma_migrations. Inspected uniqueness/indexes including UserRole compound PK, Session token and User email.
+
+## Auth integration and actual HTTP
+
+PASS: signup, duplicate safety, verification/expired verification rejection, verified login, session fixation resistance, persisted sessions across auth objects, concurrent duplicate role activation, coexistence of WORKER/EMPLOYER, ADMIN self-grant rejection, fresh suspension/new-activity denial, logout invalidation, password reset, expired reset rejection, reset reuse rejection, session revocation and non-enumerating unknown-account response. Also asserted persisted PostgreSQL rate limits across auth instances (429), hashed reset identifier, reset row consumption and no email for unknown accounts.
+
+Initial repeat-run failure exposed shared rate-limit buckets between test runs. Fixed test isolation with a unique documentation-only IPv6 network per run and cleanup of only its keys. Limits remain enabled and unchanged. Added safe static stage names for diagnosis; no assertion payloads, tokens or driver errors printed. This was a test isolation issue; runtime auth logic was not changed.
+
+PASS: pnpm test:http starts the actual Next development server and requests real routes/pages over HTTP. Verified signup → mail-token confirmation POST → login → account page → WORKER → duplicate WORKER → EMPLOYER → both roles on account → logout → old cookie denied → reset → old sessions denied/new password works, plus public ADMIN rejection and suspended mutation denial. The Next child process intercepts only Resend transport with a test-only preload, delivering to an authenticated in-memory loopback inbox; real Next, Better Auth, token handling, database and rate limits remain active. No real mail or provider credential was used. Test server stopped automatically. This is actual HTTP verification, not a claim of newly automated browser clicks; previous browser UI evidence is retained above.
+
+Session/cookie response projection exposes only allowlisted user fields; mutation JSON contains only ok. User.status remained server-owned. Verification email tokens are signed/expiring in Better Auth, not DB rows; reset Verification rows are hashed/expiring/consumed. After tests, inspected counts for User, Session, UserRole and Verification: all zero. Tests remove only their own records and counters.
+
+## Final local validation
+
+| Command | Result |
+|---|---|
+| pnpm install --frozen-lockfile | PASS |
+| pnpm db:validate | PASS |
+| pnpm db:deploy | PASS; all three migrations applied, final rerun no pending migrations |
+| pnpm db:status | PASS; up to date |
+| pnpm db:smoke | PASS; real User CRUD transaction rolled back |
+| pnpm lint | PASS; zero warnings |
+| pnpm typecheck | PASS |
+| pnpm test | PASS; 8 files / 68 tests |
+| pnpm test:integration | PASS; real PostgreSQL, unchanged protection limits |
+| pnpm test:http | PASS; actual Next routes and protected page flow |
+| pnpm build | PASS; public auth pages static, account/API dynamic |
+| prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code | PASS; no difference detected |
+
+## CI, security and deployment compatibility
+
+Previous Phase 2 implementation CI [37591825052](https://github.com/doq-xwxz/connecting-work/actions/runs/37591825052) passed for a22f968. Added a separate postgres-auth job with a fresh PostgreSQL 18 service: frozen install/generation/validation/deploy/status/smoke/integration/HTTP. Both push and pull_request remain enabled; permissions stay read-only, no deployment or production/provider secrets. The closure commit's result must be verified after push and reported with its run/commit evidence; this pre-publication report does not invent that result.
+
+PASS: bounded credential/private-key pattern scan, exact disposable credential scan of eligible Git files, and ignored-path review; no matches. Production static JS scan found no DATABASE_URL/BETTER_AUTH_SECRET/RESEND_API_KEY/PrismaClient/test-mail-secret references. Random DB/auth/mail fixture credentials stay in ignored temporary files or child-process memory. The preload is test-only and never imported by app runtime; no new production localhost branch, filesystem inbox, in-memory session store or operator background service. PostgreSQL persists sessions/roles/limits; config still selects runtime DATABASE_URL and direct migration URL. Production continues to require explicit HTTPS origin, injected secrets and a configured real sender. Managed Next/Vercel-equivalent hosting must support Node/Next after. No website deployed.
+
+## Changed files and remaining blockers
+
+Closure changes: prisma/schema.prisma; the FoundationCheck-only cleanup migration; scripts/db-smoke.ts; scripts/auth-integration.ts; new scripts/auth-http.ts and auth-test-mail.mjs; package.json (HTTP test command only); .github/workflows/ci.yml; PHASE_2.md, DATABASE.md, SECURITY.md, README.md and AGENTS.md. No dependency version or lockfile changes.
+
+Local PostgreSQL/auth/HTTP blockers are resolved. Real cloud provider provisioning/TLS/transaction-pool settings, real email deliverability and deployed proxy/IP forwarding are not exercised here and remain release-environment checks. Stop for Phase 2 closure review; no automatic Phase 3 continuation.

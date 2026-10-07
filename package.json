@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "prisma generate && node --conditions=react-server --import=tsx scripts/auth-integration.ts",
+    "test:http": "prisma generate && node --conditions=react-server --import=tsx scripts/auth-http.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

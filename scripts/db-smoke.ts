@@ -1,4 +1,5 @@
 import nextEnv from "@next/env";
+import { randomUUID } from "node:crypto";
 import { getDb } from "../src/shared/db/client";
 
 nextEnv.loadEnvConfig(process.cwd());
@@ -11,15 +12,16 @@ async function main() {
   }
 
   let db: ReturnType<typeof getDb> | undefined;
-  const rollback = new Error("foundation-smoke-rollback");
+  const rollback = new Error("auth-smoke-rollback");
   try {
     db = getDb();
     await db.$queryRaw`SELECT 1`;
     try {
       await db.$transaction(async (tx) => {
-        const row = await tx.foundationCheck.create({ data: {} });
-        const found = await tx.foundationCheck.findUnique({ where: { id: row.id } });
-        if (!found) throw new Error("probe missing");
+        const id = randomUUID();
+        const row = await tx.user.create({ data: { id, name: "Database smoke", email: `smoke-${id}@example.invalid` } });
+        const found = await tx.user.findUnique({ where: { id: row.id }, include: { roles: true } });
+        if (!found || found.status !== "ACTIVE" || found.emailVerified || found.roles.length) throw new Error("probe invalid");
         throw rollback;
       });
     } catch (error) {

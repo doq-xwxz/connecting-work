@@ -7,13 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Infrastructure only: verifies a real migration and Prisma CRUD transaction.
-// The smoke test rolls back its row. No marketplace/domain entities exist yet.
-model FoundationCheck {
-  id        Int      @id @default(autoincrement())
-  checkedAt DateTime @default(now())
-}
-
 enum Role {
   WORKER
   EMPLOYER
