@@ -25,7 +25,8 @@ export function AccountControls({ roles, active }: { roles: string[]; active: bo
     {!active && <p className="text-sm">Tài khoản hiện không được tạo hoạt động mới. Quyền truy cập tài khoản không đồng nghĩa với quyền thực hiện nghiệp vụ.</p>}
     <nav aria-label="Hồ sơ theo vai trò" className="flex flex-wrap gap-4 underline">
       {roles.includes("WORKER") && <Link href="/worker/profile">Hồ sơ tìm việc</Link>}
-      {roles.includes("EMPLOYER") && <><Link href="/employer/profile">Hồ sơ người thuê</Link><Link href="/employer/companies">Công ty</Link><Link href="/employer/workers">Tìm người</Link></>}
+      {roles.includes("EMPLOYER") && <><Link href="/employer/profile">Hồ sơ người thuê</Link><Link href="/employer/companies">Công ty</Link><Link href="/employer/workers">Tìm người</Link><Link href="/employer/jobs">Quản lý tin</Link></>}
+      <Link href="/jobs">Tìm việc</Link>
     </nav>
     <button disabled={busy} className="rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50" onClick={() => mutate("/api/auth/sign-out", {})}>Đăng xuất</button>
     <p role="status" aria-live="polite" className="text-sm">{message}</p>

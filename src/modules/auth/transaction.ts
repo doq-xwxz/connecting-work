@@ -8,7 +8,7 @@ import { AppError } from "@/shared/errors/app-error";
 export async function currentActor(tx: Prisma.TransactionClient, actor: Principal, role: Role, mutation = false, lock = false) {
   if (lock) await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.id} FOR UPDATE`;
   const user = await tx.user.findUnique({ where: { id: actor.id }, select: {
-    id: true, name: true, status: true, roles: { select: { role: true } },
+    id: true, name: true, emailVerified: true, status: true, roles: { select: { role: true } },
   } });
   if (!user) throw new AppError("UNAUTHENTICATED");
   if (!user.roles.some((entry) => entry.role === role)) throw new AppError("FORBIDDEN");

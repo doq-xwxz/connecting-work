@@ -35,7 +35,8 @@ export const discoverySchema = pageSchema.extend({ city: citySchema.optional(),
   skillId: z.preprocess((value) => value === "" ? undefined : value, opaqueId.optional()),
   preference: z.preprocess((value) => value === "" ? undefined : value, z.enum(preferences).optional()) });
 const safeInputFields = new Set(["headline", "bio", "city", "timezone", "preferences", "workModes", "skills", "availability",
-  "type", "description", "name", "website", "creationKey", "discoverable", "limit", "cursor", "skillId", "preference"]);
+  "type", "description", "name", "website", "creationKey", "discoverable", "limit", "cursor", "skillId", "preference",
+  "title", "category", "employmentType", "workMode", "compensationType", "compensationMin", "compensationMax", "currency", "headcount", "startDate", "endDate", "schedule", "expectedVersion"]);
 export class InputError extends AppError {
   constructor(readonly fields: string[]) { super("VALIDATION"); }
 }

@@ -177,8 +177,68 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request(`${api}/company/${company.id}/members/${userId}`, {}, cookie, "DELETE")).status, 409);
     const crossOrigin = await fetch(`${origin}${api}/worker`, { method: "POST", headers: { origin: "https://other.invalid", cookie, "content-type": "application/json" }, body: JSON.stringify(workerData) });
     assert.equal(crossOrigin.status, 403);
+    stage = "Phase 4 HTTP jobs, privacy, publishing and quota";
+    const jobData = { title: "HTTP job", description: "HTTP structured terms", category: "FINANCE_ACCOUNTING", employmentType: "PART_TIME", workMode: "REMOTE", city: "Hồ Chí Minh",
+      compensationType: "HOURLY", compensationMin: "50000", compensationMax: "80000", currency: "VND", headcount: 2, startDate: "2026-11-01", endDate: "2026-11-30", timezone: "Asia/Ho_Chi_Minh",
+      skills: [{ skillId: skill.id, required: true, minimumLevel: "INTERMEDIATE" }], schedule: [{ weekday: 1, startHour: 9, endHour: 17 }] };
+    const jobsPath = `${api}/employer-jobs`;
+    const jobBody = () => ({ ...jobData, companyId: null, creationKey: randomUUID() });
+    async function createHttpJob(companyId: string | null = null) {
+      const response = await request(jobsPath, { ...jobBody(), companyId }, cookie); assert.equal(response.status, 200); return response.json();
+    }
+    async function moveHttpJob(job: { id: string; version: number }, action: string, expected = 200) {
+      const response = await request(`${jobsPath}/${job.id}/${action}`, { expectedVersion: job.version }, cookie);
+      assert.equal(response.status, expected); return response.json();
+    }
+    assert.equal((await request("/jobs")).status, 200);
+    assert.equal((await request(`${api}/jobs`)).status, 200);
+    assert.equal((await request(jobsPath, jobBody())).status, 401);
+    assert.equal((await request(jobsPath)).status, 401);
+    assert.equal((await fetch(`${origin}${jobsPath}`, { method: "POST", headers: { origin: "https://other.invalid", cookie, "content-type": "application/json" }, body: JSON.stringify(jobBody()) })).status, 403);
+    assert.equal((await request(jobsPath, { ...jobBody(), status: "PUBLISHED" }, cookie)).status, 400);
+    assert.equal((await request(jobsPath, { ...jobBody(), createdByUserId: userId }, cookie)).status, 400);
+    assert.equal((await request(jobsPath, { ...jobBody(), compensationMin: "1.5" }, cookie)).status, 400);
+    assert.equal((await request(jobsPath, { ...jobBody(), companyId: randomUUID() }, cookie)).status, 404);
+    await db.user.update({ where: { id: userId }, data: { emailVerified: false } });
+    let firstJob = await createHttpJob();
+    await moveHttpJob(firstJob, "publish", 403);
+    assert.equal((await request(`${api}/jobs/${firstJob.id}`)).status, 404);
+    assert.equal((await request(`/jobs/${firstJob.id}`)).status, 404);
+    await db.user.update({ where: { id: userId }, data: { emailVerified: true } });
+    firstJob = await moveHttpJob(firstJob, "publish");
+    let secondJob = await moveHttpJob(await createHttpJob(), "publish");
+    const thirdJob = await moveHttpJob(await createHttpJob(), "publish");
+    let fourthJob = await createHttpJob(); await moveHttpJob(fourthJob, "publish", 409);
+    firstJob = await moveHttpJob(firstJob, "pause"); assert.equal(firstJob.quota.active, 3);
+    assert.equal((await request(`${api}/jobs/${firstJob.id}`)).status, 404);
+    firstJob = await moveHttpJob(firstJob, "resume");
+    firstJob = await moveHttpJob(firstJob, "close"); await moveHttpJob(firstJob, "publish", 409);
+    fourthJob = await moveHttpJob(fourthJob, "publish");
+    const duplicateResponse = await request(`${jobsPath}/${firstJob.id}/duplicate`, { creationKey: randomUUID() }, cookie);
+    assert.equal(duplicateResponse.status, 200); const duplicateJob = await duplicateResponse.json();
+    assert.equal(duplicateJob.status, "DRAFT"); assert.notEqual(duplicateJob.id, firstJob.id); assert.equal(duplicateJob.publishedAt, null);
+    let companyJob = await moveHttpJob(await createHttpJob(company.id), "publish");
+    const editResponse = await request(`${jobsPath}/${companyJob.id}`, { ...jobData, description: "Edited HTTP terms", expectedVersion: companyJob.version }, cookie, "PUT");
+    assert.equal(editResponse.status, 200); companyJob = await editResponse.json();
+    await moveHttpJob(companyJob, "completed", 404);
+    const publicResponse = await request(`${api}/jobs/${companyJob.id}`); assert.equal(publicResponse.status, 200);
+    const publicJob = await publicResponse.json(); assert.equal(publicJob.owner.kind, "COMPANY");
+    assert.equal(publicJob.compensationMin, "50000");
+    for (const value of [email, userId, employerProfile.id]) assert.ok(!JSON.stringify(publicJob).includes(value));
+    assert.ok(!Object.hasOwn(publicJob, "createdByUserId")); assert.ok(!Object.hasOwn(publicJob, "companyId"));
+    assert.equal((await request(`/jobs/${companyJob.id}`)).status, 200);
+    for (const path of ["/employer/jobs", "/employer/jobs/new", `/employer/jobs/${companyJob.id}`, `/employer/jobs/${companyJob.id}/edit`]) assert.equal((await request(path, undefined, cookie)).status, 200);
+    for (const query of ["limit=1000", "status=DRAFT", "limit=1&limit=2"]) assert.equal((await request(`${api}/jobs?${query}`)).status, 400);
+    await db.userRole.delete({ where: { userId_role: { userId, role: "EMPLOYER" } } });
+    assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
+    await db.userRole.create({ data: { userId, role: "EMPLOYER", grantedBy: "http-fixture" } });
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
+    assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
+    await moveHttpJob(duplicateJob, "publish", 403);
+    assert.equal((await request(`${jobsPath}/${thirdJob.id}/duplicate`, { creationKey: randomUUID() }, cookie)).status, 403);
+    secondJob = await moveHttpJob(secondJob, "pause"); await moveHttpJob(secondJob, "resume", 403);
+    await moveHttpJob(secondJob, "close"); await moveHttpJob(fourthJob, "cancel");
     assert.equal((await request("/api/account/roles", { role: "WORKER" }, cookie)).status, 403);
     assert.equal((await request(`${api}/worker/${workerProfile.id}`, workerData, cookie, "PUT")).status, 403);
     assert.equal((await request(`${api}/company/${company.id}`, companyData, cookie, "PUT")).status, 403);
@@ -200,7 +260,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2 auth regression and Phase 3 profiles/discovery/privacy/company/owner/origin/status checks; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2 auth, Phase 3 profiles/company/discovery and Phase 4 jobs/pages/privacy/quota/ownership/status regressions; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;
@@ -212,6 +272,10 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     try {
       userId ??= (await db.user.findUnique({ where: { email }, select: { id: true } }))?.id;
       if (userId) {
+        const jobIds = (await db.job.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
+        await db.jobSkill.deleteMany({ where: { jobId: { in: jobIds } } });
+        await db.jobScheduleWindow.deleteMany({ where: { jobId: { in: jobIds } } });
+        await db.job.deleteMany({ where: { id: { in: jobIds } } });
         const companyIds = (await db.company.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
         await db.companyMember.deleteMany({ where: { companyId: { in: companyIds } } });
         await db.company.deleteMany({ where: { id: { in: companyIds } } });

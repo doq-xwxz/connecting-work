@@ -1,6 +1,6 @@
 # Database foundation
 
-[PRODUCT](PRODUCT.md) is source of truth; [PHASE_0 §6](PHASE_0.md#6-conceptual-database-schema) is the conceptual domain design. Phase 3 adds profile/company tables; Jobs, Applications and hiring tables do not exist.
+[PRODUCT](PRODUCT.md) is source of truth; [PHASE_0 §6](PHASE_0.md#6-conceptual-database-schema) is the conceptual domain design. Phase 4 adds Job/JobSkill/JobScheduleWindow; Application, Offer and Engagement tables do not exist.
 
 ## Current implementation
 
@@ -41,6 +41,18 @@ Discovery defaults false in PostgreSQL and changes only through the explicit own
 Company has stable UNIQUE slug, UNVERIFIED default, creator provenance and UNIQUE(creator,creationKey) for retries. CompanyMember has compound PK(company,user) and a reviewed partial unique index allowing at most one OWNER. Company + initial OWNER are atomic; public OWNER removal/transfer is unavailable, preserving the final OWNER. The DB index alone does not enforce owner existence: trusted future writers must preserve an OWNER inside the same transaction protocol. Company/member/provenance FKs restrict deletion; no public company/account deletion exists.
 
 Sensitive writes lock/recheck User, then Company where relevant, then current membership. MANAGER removal takes the same Company lock. Creator provenance grants no authority. Real integration tests observe PostgreSQL lock waits before revocation/suspension commits, plus duplicate creation/membership, last OWNER, creator departure and pagination/privacy. Fixture-only ownership replacement under the Company lock is evidence, not a production transfer tool. Tests clean only their own profiles/companies/members/identities.
+
+## Phase 4 schema and invariants
+
+`20261007040000_jobs` adds three tables and JobStatus/JobCategory/CompensationType enums. EmploymentType, WorkMode, SkillLevel and Skill taxonomy are reused. Job FKs to creator User, originating EmployerProfile and optional Company all RESTRICT; these are provenance/ownership relations, never cascading history deletion. Job children also RESTRICT; term-edit services explicitly replace children inside the same transaction. No public delete endpoint exists. UNIQUE(creator,creationKey) protects retries; JobSkill has compound PK(job,skill). Job version starts at one and increments on edits/transitions.
+
+Money is nullable BigInt min/max, exact non-negative whole VND, max 1,000,000,000,000; both bounds present or both absent, ordered min<=max, type required with amounts. Equal bounds mean fixed compensation. Currency is explicit VND; HOURLY/DAILY/PROJECT/MONTHLY are PRODUCT units. API uses canonical decimal strings, never floating-point money. Published ads require compensation; drafts can omit it. CHECKs enforce these conditions, headcount 1–1000/version positive, date ordering/range and status timestamps.
+
+Start/end are PostgreSQL DATE, API YYYY-MM-DD, Prisma conversion UTC midnight; timestamp fields are UTC instants. Dates are optional within 2000–2100; end requires start. No date-triggered state transition exists. Weekly schedule matches WorkerAvailability: day 0–6, whole local hours, IANA zone, max 14 nonoverlapping windows, adjacent allowed, overnight split across days. DB CHECK/UNIQUE enforce ranges/exact duplicates; Zod enforces overlap and timezone. PART_TIME/TEMPORARY/SHIFT require windows to publish; other types may omit them. JobSkill required/minimumLevel uses existing four levels, max 20 unique active skills on addition/edit.
+
+Indexes cover owner/status, company/status, status/city/type/mode/id, status/publishedAt/id, category/status/id and skill/job. Public queries currently order by immutable UUID ascending with take+1, default 12/max 30; published timestamp index leaves room for a future deliberate ordering policy. Company and personal-profile row locks serialize the count+transition, including resume. PAUSED still occupies quota. There is no in-memory mutex or counter. Real tests must prove different-actor Company concurrency, membership revocation and fresh User status under these locks.
+
+Integration workflow also runs `pnpm test:jobs` between `test:profiles` and `test:http`. All four integration commands require explicit TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable; all five committed migrations must be applied first. Repeat deploy is expected to be a no-op. Test-only cleanup removes children/jobs before their owned Company/profile/User fixtures; production has no deletion flow. See [PHASE_4](PHASE_4.md) for execution evidence.
 
 ## Future approved constraints / deferred schemas
 

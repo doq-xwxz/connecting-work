@@ -1,6 +1,6 @@
 # Architecture
 
-Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–2 are approved and Phase 2 is closed. Phase 3 adds profiles/private discovery/company foundation; the marketplace is not launched and Phase 4/deployment are not authorized.
+Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–3 are approved. Phase 4 adds Jobs; stop for Phase 4 review. Phase 5 and deployment are not authorized.
 
 ## Approved direction
 
@@ -10,7 +10,7 @@ Next.js App Router + TypeScript strict + PostgreSQL/Prisma, Tailwind/shadcn, mod
 
 `src/app` contains presentation/HTTP adapters. `src/components/ui` documents shadcn manual setup; tokens/config/utils exist, no unused primitive set. `src/modules/README.md` defines module boundaries. `src/shared/config` contains Zod env parsing and server-only env reader; `shared/db/client.ts` is lazy/server-only with hot-reload reuse and bounded pg pool; `shared/errors` provides client-safe categories; `shared/logging` fixed-field JSON events; `shared/ui` class merging. `scripts/db-smoke.ts` is an operator-only check, not an HTTP endpoint.
 
-Public UI/build require no DB or provider env. Actual auth validates runtime config lazily. No secrets are read in Client Components. Local system fonts avoid build-time remote downloads. No middleware pretending auth exists.
+Landing/auth UI and build require no DB or provider env. Actual auth validates runtime config lazily; actual Job data requires migrated runtime PostgreSQL. No secrets are read in Client Components. Local system fonts avoid build-time remote downloads. No middleware pretending auth exists.
 
 ## Phase 2 implementation
 
@@ -30,6 +30,18 @@ The dynamic Node `/api/marketplace/[...path]` adapter accepts only explicit meth
 
 Phase 3 resolves only the D1 taxonomy/preferences/availability/completeness and D3 defaults/coarse discovery projection described in PHASE_3. New activity fails closed for SUSPENDED/BANNED; own read access and privacy opt-out remain. There are no active hiring obligations in this phase. Real PostgreSQL tests use independent pool connections and observe actual lock waits before committing revocation/suspension; HTTP tests run real Next/Better Auth/PostgreSQL. Only test email transport is intercepted.
 
+## Phase 4 implementation
+
+`modules/jobs` owns explicit contracts, pure lifecycle/ownership/completeness/quota/material-edit policies, allowlisted projections and server-only transactional services. App adapters and client leaves never import repositories or DB clients. Current EmployerProfile is required; personal ownership uses its ID, company ownership uses current OWNER/MANAGER membership. Creator provenance conveys no company authority. Verified email gates publish/resume and active-term edits; unverified ACTIVE employers can prepare drafts. SUSPENDED/BANNED may read owned records and pause/close/cancel to reduce exposure, but cannot create/edit/duplicate/publish/resume.
+
+Every sensitive write locks/rechecks User, then the Company or personal EmployerProfile owner row, then an existing Job. Company revocation takes the same Company lock. Count PUBLISHED+PAUSED under that owner lock before publication/resumption: three per personal profile, separately three per company, irrespective of creator. The optimistic version rejects stale edits/actions. Creation/duplication keys are actor-bound retry keys; they do not grant authority. Children and scalar terms are saved atomically. Trusted future writers must use these locks too; DB quota is a transactional service invariant, not a CHECK across rows.
+
+Public `GET /api/marketplace/jobs` and `/jobs/:id` project only PUBLISHED ads. Private `/api/marketplace/employer-jobs` separates management DTOs and explicit POST lifecycle actions. All queries are bounded UUID cursor pages; no ranking/search engine. Public owner display includes Company name/slug/badge or personal display name, never owner identity IDs, contacts, membership or status. Job ad text is employer-supplied and escaped, not automatically PII-redacted. No exact address is stored. Public listing is status-based; automatic hiding on owner suspension remains D5, with restrictive owner actions already available.
+
+`JobTerms` v1 is an explicit JSON-serializable contract (money as integer strings, date-only ISO strings, normalized skill/schedule arrays). No snapshots are persisted yet. Only description wording is classified non-material; other recruiting terms are conservatively material. The policy has explicit PRE_HIRING versus HIRING contexts. Phase 4 uses structural PRE_HIRING because Application/Engagement tables do not exist; Phase 5 must load real application/occupied-slot facts under the Job lock and activate the guard. No fake count column or application service exists. CLOSED/CANCELLED/COMPLETED are terminal; COMPLETED has no ordinary Phase 4 transition. No scheduled auto-completion.
+
+See [PHASE_4](PHASE_4.md) for decisions, live evidence and deferred hiring effects.
+
 ## Future boundaries — design proposal
 
 Worker/employer/admin route groups introduced only in owning phases. Server Actions/Route Handlers validate/authenticate and call services. Services recheck ownership/current company membership/state in scoped queries/transactions; repositories never authorize browser-supplied IDs alone. Return DTO allowlists, not raw Prisma entities. Client components are only interactive leaves. Cross-module calls use public contracts/services; applications owns hiring orchestration.
@@ -40,6 +52,6 @@ Suspension/block is action+resource policy: deny new activity while preserving r
 
 ## Decisions and references
 
-Zod is selected for ingress validation by Phase 1 instruction; Vitest for Node unit tests; pnpm exclusively. Exact installed versions and evidence are recorded in PHASE_1.md and lockfile. D8 package/runtime choice resolved for Foundation; provider/ops budget decisions remain deferred. Phase 3 resolves only the D1/D3 subset above. D1 scoring, remaining D3 matching/contact policies, D2 cancellation/job-finalization, D4 public phone policy, D5 moderation, D6 invitation/history, D7 legal retention and D9 metric windows remain deferred.
+Zod is selected for ingress validation by Phase 1 instruction; Vitest for Node unit tests; pnpm exclusively. Exact installed versions and evidence are recorded in PHASE_1.md and lockfile. D8 package/runtime choice resolved for Foundation; provider/ops budget decisions remain deferred. Phase 3 resolves only its D1/D3 subset; Phase 4 only pre-hiring D2 state/edit preparation and D3 coarse Job ads. D1 scoring, remaining D3 matching/contact policies, dependent D2 hiring cancellation/job-finalization, D4 public phone policy, D5 moderation, D6 invitation/history, D7 legal retention and D9 metric windows remain deferred.
 
 References used for setup: [Next installation](https://nextjs.org/docs/app/getting-started/installation), [Prisma PostgreSQL](https://www.prisma.io/docs/orm/overview/databases/postgresql), [Prisma connections](https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/databases-connections), [shadcn manual setup](https://ui.shadcn.com/docs/installation/manual). New decisions must record status/context/options/consequences, and product changes require explicit review.

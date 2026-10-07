@@ -35,6 +35,7 @@ model User {
   employerProfile    EmployerProfile?
   companyMemberships CompanyMember[]
   createdCompanies   Company[]        @relation("CompanyCreator")
+  createdJobs        Job[]            @relation("JobCreator")
 }
 
 model Session {
@@ -154,6 +155,7 @@ model Skill {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   workers   WorkerSkill[]
+  jobs      JobSkill[]
 
   @@index([active, category])
 }
@@ -226,6 +228,7 @@ model EmployerProfile {
   city        String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  jobs        Job[]
 }
 
 model Company {
@@ -243,6 +246,7 @@ model Company {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   members         CompanyMember[]
+  jobs            Job[]
 
   @@unique([createdByUserId, creationKey])
 }
@@ -257,4 +261,94 @@ model CompanyMember {
 
   @@id([companyId, userId])
   @@index([userId, companyId])
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+  COMPLETED
+  CANCELLED
+}
+
+enum JobCategory {
+  ADMIN_OPERATIONS
+  FINANCE_ACCOUNTING
+  MARKETING
+  CREATIVE
+  GENERAL_PART_TIME
+}
+
+enum CompensationType {
+  HOURLY
+  DAILY
+  PROJECT
+  MONTHLY
+}
+
+model Job {
+  id                String              @id @default(uuid())
+  createdByUserId   String
+  createdBy         User                @relation("JobCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  employerProfileId String
+  employer          EmployerProfile     @relation(fields: [employerProfileId], references: [id], onDelete: Restrict)
+  companyId         String?
+  company           Company?            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  creationKey       String
+  title             String              @default("")
+  description       String              @default("")
+  category          JobCategory?
+  status            JobStatus           @default(DRAFT)
+  version           Int                 @default(1)
+  employmentType    EmploymentType?
+  workMode          WorkMode?
+  city              String?
+  compensationType  CompensationType?
+  compensationMin   BigInt?
+  compensationMax   BigInt?
+  currency          String              @default("VND")
+  headcount         Int                 @default(1)
+  startDate         DateTime?           @db.Date
+  endDate           DateTime?           @db.Date
+  timezone          String              @default("Asia/Ho_Chi_Minh")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  publishedAt       DateTime?
+  closedAt          DateTime?
+  cancelledAt       DateTime?
+  skills            JobSkill[]
+  schedule          JobScheduleWindow[]
+
+  @@unique([createdByUserId, creationKey])
+  @@index([status, id])
+  @@index([employerProfileId, companyId, status])
+  @@index([companyId, status])
+  @@index([status, city, employmentType, workMode, id])
+  @@index([status, publishedAt, id])
+  @@index([category, status, id])
+}
+
+model JobSkill {
+  jobId        String
+  skillId      String
+  required     Boolean    @default(true)
+  minimumLevel SkillLevel @default(BEGINNER)
+  job          Job        @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([jobId, skillId])
+  @@index([skillId, jobId])
+}
+
+model JobScheduleWindow {
+  id        String @id @default(uuid())
+  jobId     String
+  weekday   Int
+  startHour Int
+  endHour   Int
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@unique([jobId, weekday, startHour, endHour])
+  @@index([jobId, weekday])
 }

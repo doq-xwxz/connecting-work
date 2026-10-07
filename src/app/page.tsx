@@ -6,12 +6,12 @@ export default function Home() {
       <p className="text-sm font-medium tracking-widest text-muted-foreground">CONNECTING WORK</p>
       <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Tìm đúng việc.<br />Gặp đúng người.</h1>
       <p className="max-w-xl text-lg leading-relaxed text-muted-foreground">
-        Bạn có thể tạo hồ sơ tìm việc, hồ sơ người thuê và công ty. Đăng việc và các quy trình tuyển dụng chưa được mở.
+        Tạo hồ sơ, đăng tin tuyển dụng cá nhân hoặc công ty và xem các tin đang đăng. Quy trình ứng tuyển và tuyển người chưa được mở.
       </p>
       <div className="w-fit rounded-lg border border-border bg-card px-4 py-3 text-sm text-card-foreground">
-        Phase 3 · Hồ sơ và công ty
+        Phase 4 · Tin tuyển dụng
       </div>
-      <nav className="flex gap-4" aria-label="Tài khoản"><Link className="rounded-md bg-primary px-4 py-2 text-primary-foreground" href="/sign-up">Tạo tài khoản</Link><Link className="rounded-md border px-4 py-2" href="/sign-in">Đăng nhập</Link></nav>
+      <nav className="flex flex-wrap gap-4" aria-label="Tài khoản"><Link className="rounded-md bg-primary px-4 py-2 text-primary-foreground" href="/jobs">Xem việc làm</Link><Link className="rounded-md border px-4 py-2" href="/sign-up">Tạo tài khoản</Link><Link className="rounded-md border px-4 py-2" href="/sign-in">Đăng nhập</Link></nav>
     </main>
   );
 }
