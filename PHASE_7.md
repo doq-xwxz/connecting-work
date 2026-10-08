@@ -92,7 +92,7 @@ Executed locally on Node24.20.0/pnpm11.25.0 and disposable PostgreSQL18.6, with 
 | Phase 7 PostgreSQL integration | PASS — entitlement/current roles/membership/departure/status, terminal history, blocks, notifications, bounds, constraints, persistent rates |
 | HTTP tests | PASS — retained Phase2–6 plus Phase7 API/pages/XSS/origin/oversize/IDOR/poll/history/read/block/notification/suspended active work/manager removal |
 | concurrency/idempotency | PASS — simultaneous lazy open, same-key duplicate/changed body, both-direction send, monotonic concurrent reads/read-send notification race, observed real User/Company/advisory lock waits, timestamp ties/cross-context cursors |
-| GitHub Actions | BLOCKED — not yet published/verified at this local report stage; replaced with exact remote evidence after publication |
+| GitHub Actions | PASS — exact implementation SHA da3bad5028bfb8f7e8e99e189bd1c451a6f40ee3, run37729700526 completed SUCCESS; checks and postgres-auth both SUCCESS, including every Phase2–7 integration/HTTP step |
 
 Known pg8.23.1 concurrent-client-query deprecation warning persists from the adapter/earlier phases; assertions pass, no dependency upgrade/suppressed failure. Earlier development failures were corrected and rerun: advisory-lock VOID projection needed a text cast, Company unread expectation needed to include another manager's message, and a new assertion callback required async. No runtime secret/SQL/payload was printed. These checks are not production load/penetration/browser-interaction testing.
 
@@ -102,7 +102,7 @@ CONFIRMED: production remains independent of developer PC. Managed Node/Next, in
 
 ## 19. Files changed
 
-Schema + one new migration; messaging contracts/policies/projections/services/server pages/client chat/tests; hiring public chat query and context link; five app route wrappers, marketplace adapter/navigation/no-referrer header; shared actor lock mode; real messaging PostgreSQL suite/extended HTTP cleanup; package test command/CI; AGENTS/ARCHITECTURE/DATABASE/SECURITY/ROADMAP/README/this report. No package version/lockfile or PRODUCT/Phase0–6 report/migration change. Generated client/build/env/test data/binaries are ignored and excluded.
+30 files: schema + one new migration; messaging contracts/policies/projections/services/server pages/client chat/tests; hiring public chat query and context link; five app route wrappers, marketplace adapter/navigation/no-referrer header; shared actor lock mode; real messaging PostgreSQL suite/extended HTTP cleanup; package test command/CI; AGENTS/ARCHITECTURE/DATABASE/SECURITY/ROADMAP/README/this report. No package version/lockfile or PRODUCT/Phase0–6 report/migration change. Generated client/build/env/test data/binaries are ignored and excluded.
 
 ## 20. Deviations / unresolved decisions
 
@@ -110,8 +110,12 @@ Application-only source and direct transactional in-app delivery are expressly a
 
 ## 21. Remaining blockers
 
-No known local Phase7 implementation/validation blocker. Exact remote publication and both CI jobs remain to be verified before handoff. Production operations/deployment and future features are outside scope, not fabricated PASS outcomes. Disposable PostgreSQL and HTTP children stop after checks; temporary binaries/cluster/credentials will be removed after final verification. Stop at Phase7 review.
+No known Phase7 implementation/local validation/publication/CI blocker. Exact remote implementation SHA and both completed CI jobs are verified below. Production operations/deployment and future features are outside scope, not fabricated PASS outcomes. Disposable PostgreSQL/HTTP children stopped; temporary binaries/archive/cluster/credentials/upgrade fixtures and schema/SQL copies were removed from verified absolute ignored paths after confirming the server stopped. Unrelated temporary files are preserved. Stop at Phase7 review; do not proceed to Phase8 or deploy.
 
 ## 22. Git commit / remote CI evidence
 
-Base main: `04031c47dfa1455934aa10bd50b097f0459188c4`. Standing user authorization covers ordinary commit/push to main after staged review, without force/rewrite. Remote exact SHA and checks/postgres-auth results are pending publication and will be recorded only after reading completed GitHub Actions evidence. Secret-pattern/ignored-path/historical-file/dependency/diff/SQL/security review precedes staging; no credentials/generated/env/build/test data are eligible.
+Base main: `04031c47dfa1455934aa10bd50b097f0459188c4`. Implementation: [`da3bad5028bfb8f7e8e99e189bd1c451a6f40ee3`](https://github.com/doq-xwxz/connecting-work/commit/da3bad5028bfb8f7e8e99e189bd1c451a6f40ee3), pushed normally to main under standing authorization. `git ls-remote origin refs/heads/main` returned that exact SHA. No force push or history rewrite.
+
+[GitHub Actions run37729700526](https://github.com/doq-xwxz/connecting-work/actions/runs/37729700526) returned that exact head_sha, status=completed, conclusion=success. Both checks and postgres-auth completed SUCCESS; static and fresh PostgreSQL migrations/status/smoke/Phase2–7/HTTP steps all completed successfully. Independent Ubuntu/PostgreSQL CI supplements Windows local evidence.
+
+Reviewed staged30 files,1253 insertions/21 deletions; diff --check PASS. SQL/lock-order/current membership/active work/block/read/DTO/XSS/client boundaries and dependency/historical-file preservation reviewed. Secret-pattern scan had no matches; actual disposable password had no Git-eligible matches; client JS had no DB/auth/provider secret markers. No env/generated/build/test data/credentials staged. This documentation-only follow-up records observed implementation evidence; its own final remote head and CI are verified separately in task delivery to avoid self-referential hashes. No Phase8 or deployment.
