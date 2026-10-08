@@ -59,7 +59,7 @@ Offer snapshot v1: Job ID/version, schema version, full explicit Job terms (whol
 
 ## 13. Worker routes/UI
 
-`/worker/applications`, `/worker/applications/[applicationId]`; eligible signed-in Worker Apply on public Job detail, previous-Application link otherwise. Own bounded list/detail, offer history, withdraw/accept/decline, completion request and explicit reasoned cancellation. Forms use stable per-request creation keys, disabled busy controls, labels and live feedback; server authorization remains decisive.
+`/worker/applications`, `/worker/applications/[applicationId]`; eligible signed-in Worker Apply on public Job detail, previous-Application link otherwise. Own bounded list/detail, offer history, withdraw/accept/decline, completion request and explicit reasoned cancellation. The latest Offer terms always appear before acceptance controls independently of historical Offer pagination; HTTP checks include a one-item history page. Forms use stable per-request creation keys, disabled busy controls, labels and live feedback; server authorization remains decisive.
 
 ## 14. Employer routes/UI
 
@@ -116,4 +116,4 @@ No known implementation/publication blocker after local and remote checks. Tempo
 
 Implementation commit: [9746dd9bc236b2cd6e3a4a1648003931f9fcc79c](https://github.com/doq-xwxz/connecting-work/commit/9746dd9bc236b2cd6e3a4a1648003931f9fcc79c), pushed to `main` under standing authorization. `git ls-remote origin refs/heads/main` matched that exact SHA immediately after push. No force push or history rewrite; staged changes reviewed and secrets/generated files excluded; PRODUCT, Phase 0–4 reports/migrations and lockfile unchanged.
 
-[GitHub Actions run 37722305514](https://github.com/doq-xwxz/connecting-work/actions/runs/37722305514) completed SUCCESS on that exact head SHA. Both `checks` and `postgres-auth` completed SUCCESS; frozen install/schema/lint/typecheck/unit/build and fresh PostgreSQL migrations/status/smoke/Phase 2–5/HTTP all observed SUCCESS. This evidence update changes documentation only; final main SHA and its own CI are verified again before delivery. Stop for Phase 5 review; do not proceed to Phase 6 or deploy.
+[GitHub Actions run 37722305514](https://github.com/doq-xwxz/connecting-work/actions/runs/37722305514) completed SUCCESS on that exact head SHA. Both `checks` and `postgres-auth` completed SUCCESS; frozen install/schema/lint/typecheck/unit/build and fresh PostgreSQL migrations/status/smoke/Phase 2–5/HTTP all observed SUCCESS. A follow-up UI refinement keeps latest Offer terms visible independently of history pagination and adds an actual HTTP assertion. Final main SHA and its own complete CI are verified again in the delivery report. Stop for Phase 5 review; do not proceed to Phase 6 or deploy.

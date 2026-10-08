@@ -290,6 +290,10 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await hiringPost(`offers/${offerA.id}/decline`, {}, wa.cookie);
     offerA = await hiringPost(`employer-applications/${appA.id}/offers`, { ...offerBody(), compensationMin: "65000", compensationMax: "75000" }, cookie);
     assert.equal(offerA.revision, 3); assert.equal(offerA.terms.job.compensationMin, "65000"); assert.ok(!Object.hasOwn(offerA.terms, "ownerId"));
+    const latestOfferPage = await request(`/worker/applications/${appA.id}?limit=1`, undefined, wa.cookie);
+    assert.equal(latestOfferPage.status, 200);
+    const latestOfferHtml = await latestOfferPage.text();
+    assert.ok(latestOfferHtml.includes("Đề nghị hiện tại")); assert.ok(latestOfferHtml.includes("65.000"));
     const appB = await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wb.cookie);
     await hiringPost(`employer-applications/${appB.id}/shortlist`, {}, cookie);
     const offerB = await hiringPost(`employer-applications/${appB.id}/offers`, offerBody(), cookie);
