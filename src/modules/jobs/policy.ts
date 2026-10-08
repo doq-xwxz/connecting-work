@@ -8,10 +8,11 @@ export function nextStatus(status: JobStatus, action: JobAction): JobStatus {
   if (action === "resume" && status === "PAUSED") return "PUBLISHED";
   if (action === "pause" && status === "PUBLISHED") return "PAUSED";
   if (action === "close" && isActive(status)) return "CLOSED";
-  if (action === "cancel" && (status === "DRAFT" || isActive(status))) return "CANCELLED";
+  if (action === "cancel" && (status === "DRAFT" || status === "CLOSED" || isActive(status))) return "CANCELLED";
+  if (action === "complete" && status === "CLOSED") return "COMPLETED";
   throw new AppError("CONFLICT");
 }
-export function permitsRestrictedActor(action: JobAction) { return ["pause", "close", "cancel"].includes(action); }
+export function permitsRestrictedActor(action: JobAction) { return ["pause", "close", "cancel", "complete"].includes(action); }
 export function requireQuota(count: number, currentStatus: JobStatus) {
   if (count + (isActive(currentStatus) ? 0 : 1) > FREE_ACTIVE_LIMIT) throw new AppError("CONFLICT");
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { availabilitySchema, citySchema, levels, opaqueId, pageSchema, preferences, workerSchema, workModes } from "@/modules/profiles/contracts";
 
 export const statuses = ["DRAFT", "PUBLISHED", "PAUSED", "CLOSED", "COMPLETED", "CANCELLED"] as const;
-export const actions = ["publish", "pause", "resume", "close", "cancel"] as const;
+export const actions = ["publish", "pause", "resume", "close", "cancel", "complete"] as const;
 export const categories = ["ADMIN_OPERATIONS", "FINANCE_ACCOUNTING", "MARKETING", "CREATIVE", "GENERAL_PART_TIME"] as const;
 export const compensationTypes = ["HOURLY", "DAILY", "PROJECT", "MONTHLY"] as const;
 export const FREE_ACTIVE_LIMIT = 3;

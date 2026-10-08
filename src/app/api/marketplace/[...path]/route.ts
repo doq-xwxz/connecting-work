@@ -10,6 +10,8 @@ import { discoverWorkers, getEmployer, getWorker, listSkills, saveEmployer, save
 import { createCompany, getCompany, listCompanies, listMembers, removeManager, updateCompany } from "@/modules/companies/service";
 import { createJob, duplicateJob, editJob, getManagedJob, getPublicJob, listManagedJobs, listPublicJobs, transitionJob } from "@/modules/jobs/service";
 import { actions } from "@/modules/jobs/contracts";
+import { actOnApplication, actOnEngagement, actOnOffer, applyToJob, createOffer, getApplication, listApplications, listOffers } from "@/modules/hiring/service";
+import { applicationActions, engagementActions, offerActions } from "@/modules/hiring/contracts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +33,13 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     }
     const actor = await requireAuthenticatedUser(request.headers);
     let result: unknown;
+    if (["worker-applications", "employer-applications", "offers", "worker-engagements", "employer-engagements"].includes(area) && (request.method !== "GET" || path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET") {
-      if (area === "worker" && path.length === 1) result = await getWorker(db, actor);
+      if (area === "worker-applications" && path.length === 1) result = await listApplications(db, actor, "WORKER", query);
+      else if (["worker-applications", "employer-applications"].includes(area) && path.length === 3 && action === "offers") result = await listOffers(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, query);
+      else if (["worker-applications", "employer-applications"].includes(area) && path.length === 2) result = await getApplication(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id);
+      else if (area === "employer-jobs" && path.length === 3 && action === "applications") result = await listApplications(db, actor, "EMPLOYER", query, id);
+      else if (area === "worker" && path.length === 1) result = await getWorker(db, actor);
       else if (area === "skills" && path.length === 1) result = await listSkills(db, actor);
       else if (area === "employer" && path.length === 1) result = await getEmployer(db, actor);
       else if (area === "workers" && path.length === 1) result = await discoverWorkers(db, actor, query);
@@ -45,7 +52,13 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     } else {
       const body = await readJsonBody(request);
       if (area === "employer-jobs") parse(z.strictObject({}), query);
-      if (request.method === "POST" && path.length === 1 && area === "worker") result = await saveWorker(db, actor, body);
+      if (request.method === "POST" && path.length === 3 && area === "jobs" && action === "apply") { parse(z.strictObject({}), query); result = await applyToJob(db, actor, id, body); }
+      else if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && (applicationActions as readonly string[]).includes(action)
+        && (area === "worker-applications" ? action === "withdraw" : action !== "withdraw")) result = await actOnApplication(db, actor, id, action as typeof applicationActions[number], body);
+      else if (request.method === "POST" && path.length === 3 && area === "employer-applications" && action === "offers") result = await createOffer(db, actor, id, body);
+      else if (request.method === "POST" && path.length === 3 && area === "offers" && (offerActions as readonly string[]).includes(action)) result = await actOnOffer(db, actor, id, action as typeof offerActions[number], body);
+      else if (request.method === "POST" && path.length === 3 && ["worker-engagements", "employer-engagements"].includes(area) && (engagementActions as readonly string[]).includes(action)) result = await actOnEngagement(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id, action as typeof engagementActions[number], body);
+      else if (request.method === "POST" && path.length === 1 && area === "worker") result = await saveWorker(db, actor, body);
       else if (request.method === "PUT" && path.length === 2 && area === "worker") result = await saveWorker(db, actor, body, id);
       else if (request.method === "PATCH" && path.length === 3 && area === "worker" && action === "discoverability") result = await setDiscoverable(db, actor, id, body);
       else if (request.method === "POST" && path.length === 1 && area === "employer") result = await saveEmployer(db, actor, body);

@@ -42,6 +42,8 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   const network = randomBytes(4).toString("hex");
   const clientIp = `2001:db8:${network.slice(0, 4)}:${network.slice(4)}::1`;
   const ratePrefix = `2001:0db8:${network.slice(0, 4)}:${network.slice(4)}:0000:0000:0000:0000|`;
+  const ratePrefixes = [ratePrefix];
+  const candidateAddresses = new Map<string, string>();
   const email = `http-${randomUUID()}@example.invalid`;
   const password = randomBytes(24).toString("base64url");
   const newPassword = randomBytes(24).toString("base64url");
@@ -59,15 +61,16 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   const exited = once(child, "exit");
   let stage = "server readiness";
   let userId: string | undefined;
-  async function request(path: string, body?: object, cookie = "", method = body ? "POST" : "GET") {
+  const hiringUsers: string[] = [];
+  async function request(path: string, body?: object, cookie = "", method = body ? "POST" : "GET", address = candidateAddresses.get(cookie) ?? clientIp) {
     return fetch(`${origin}${path}`, { method, redirect: "manual",
-      headers: { origin, cookie, "x-forwarded-for": clientIp, "content-type": "application/json" },
+      headers: { origin, cookie, "x-forwarded-for": address, "content-type": "application/json" },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60_000) });
   }
   function cookieOf(response: Response) { return response.headers.getSetCookie().map((item) => item.split(";")[0]).join("; "); }
-  async function mailToken(path: string) {
+  async function mailToken(path: string, recipient = email) {
     for (let attempt = 0; attempt < 40; attempt++) {
-      const mail = messages.filter((item) => item.to.includes(email) && item.text.includes(`${origin}${path}#token=`)).at(-1);
+      const mail = messages.filter((item) => item.to.includes(recipient) && item.text.includes(`${origin}${path}#token=`)).at(-1);
       if (mail) {
         const url = mail.text.match(/https?:\/\/\S+/)?.[0];
         assert.ok(url);
@@ -232,6 +235,100 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await db.userRole.delete({ where: { userId_role: { userId, role: "EMPLOYER" } } });
     assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
     await db.userRole.create({ data: { userId, role: "EMPLOYER", grantedBy: "http-fixture" } });
+    stage = "Phase 5 HTTP multi-user hiring identities";
+    async function hiringWorker() {
+      // Independent people use independent test networks; preserve real auth limits.
+      const candidateNetwork = randomBytes(4).toString("hex");
+      const address = `2001:db8:${candidateNetwork.slice(0, 4)}:${candidateNetwork.slice(4)}::1`;
+      ratePrefixes.push(`2001:0db8:${candidateNetwork.slice(0, 4)}:${candidateNetwork.slice(4)}:0000:0000:0000:0000|`);
+      const workerEmail = `hiring-http-${randomUUID()}@example.invalid`;
+      assert.equal((await request("/api/auth/sign-up/email", { name: "HTTP candidate", email: workerEmail, password }, "", "POST", address)).status, 200);
+      const workerUser = await db.user.findUniqueOrThrow({ where: { email: workerEmail } }); hiringUsers.push(workerUser.id);
+      assert.equal((await request("/api/auth/verify-email", { token: await mailToken("/verify-email", workerEmail) }, "", "POST", address)).status, 200);
+      const login = await request("/api/auth/sign-in/email", { email: workerEmail, password }, "", "POST", address); assert.equal(login.status, 200);
+      const candidateCookie = cookieOf(login);
+      candidateAddresses.set(candidateCookie, address);
+      assert.equal((await request("/api/account/roles", { role: "WORKER" }, candidateCookie)).status, 200);
+      assert.equal((await request(`${api}/worker`, workerData, candidateCookie)).status, 200);
+      return { cookie: candidateCookie, id: workerUser.id, email: workerEmail };
+    }
+    const wa = await hiringWorker(), wb = await hiringWorker(), wc = await hiringWorker();
+    async function hiringPost(path: string, body: object, actorCookie: string, expected = 200) {
+      const response = await request(`${api}/${path}`, body, actorCookie); assert.equal(response.status, expected); return response.json();
+    }
+    stage = "Phase 5 HTTP apply, scope, explicit pipeline and material restrictions";
+    const applyKey = randomUUID();
+    const appA = await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: applyKey }, wa.cookie);
+    assert.equal((await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: applyKey }, wa.cookie)).id, appA.id);
+    await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wa.cookie, 409);
+    await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID(), workerProfileId: workerProfile.id }, wb.cookie, 400);
+    await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, cookie, 403);
+    assert.equal((await request(`${api}/worker-applications/${appA.id}`, undefined, wb.cookie)).status, 404);
+    const crossApply = await fetch(`${origin}${api}/jobs/${companyJob.id}/apply`, { method: "POST", headers: { origin: "https://other.invalid", cookie: wb.cookie, "content-type": "application/json" }, body: JSON.stringify({ creationKey: randomUUID() }) });
+    assert.equal(crossApply.status, 403);
+    assert.equal((await request(`${api}/worker-applications`)).status, 401);
+    assert.equal((await request(`${api}/worker-applications?limit=1000`, undefined, wa.cookie)).status, 400);
+    const applicantList = await (await request(`${jobsPath}/${companyJob.id}/applications?limit=1`, undefined, cookie)).json();
+    assert.equal(applicantList.items[0].status, "APPLIED");
+    assert.equal(applicantList.items[0].worker.displayName, "HTTP candidate");
+    const employerView = await (await request(`${api}/employer-applications/${appA.id}`, undefined, cookie)).json();
+    for (const secret of [wa.email, wa.id, "workerProfileId", "userId", "sessions"]) assert.ok(!JSON.stringify(employerView).includes(secret));
+    assert.equal(employerView.status, "APPLIED");
+    await hiringPost(`employer-applications/${appA.id}/view`, {}, cookie);
+    await hiringPost(`employer-applications/${appA.id}/shortlist`, {}, cookie);
+    await hiringPost(`employer-applications/${appA.id}/shortlist`, { status: "ACCEPTED" }, cookie, 400);
+    assert.equal((await request(`${jobsPath}/${companyJob.id}`, { ...jobData, compensationMin: "60000", expectedVersion: companyJob.version }, cookie, "PUT")).status, 409);
+    assert.equal((await request(`${jobsPath}/${companyJob.id}`, { ...jobData, city: "Hà Nội", expectedVersion: companyJob.version }, cookie, "PUT")).status, 409);
+    stage = "Phase 5 HTTP immutable revisions, decline, revoke and closed acceptance";
+    const offerBody = () => ({ creationKey: randomUUID(), expiresAt: null });
+    let offerA = await hiringPost(`employer-applications/${appA.id}/offers`, offerBody(), cookie);
+    await hiringPost(`offers/${offerA.id}/accept`, {}, wb.cookie, 404);
+    await hiringPost(`employer-applications/${appA.id}/reject`, {}, cookie, 409);
+    await hiringPost(`offers/${offerA.id}/revoke`, {}, cookie);
+    await hiringPost(`offers/${offerA.id}/accept`, {}, wa.cookie, 409);
+    offerA = await hiringPost(`employer-applications/${appA.id}/offers`, offerBody(), cookie);
+    await hiringPost(`offers/${offerA.id}/decline`, {}, wa.cookie);
+    offerA = await hiringPost(`employer-applications/${appA.id}/offers`, { ...offerBody(), compensationMin: "65000", compensationMax: "75000" }, cookie);
+    assert.equal(offerA.revision, 3); assert.equal(offerA.terms.job.compensationMin, "65000"); assert.ok(!Object.hasOwn(offerA.terms, "ownerId"));
+    const appB = await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wb.cookie);
+    await hiringPost(`employer-applications/${appB.id}/shortlist`, {}, cookie);
+    const offerB = await hiringPost(`employer-applications/${appB.id}/offers`, offerBody(), cookie);
+    const appC = await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wc.cookie);
+    await hiringPost(`worker-applications/${appC.id}/withdraw`, {}, wc.cookie);
+    await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wc.cookie, 409);
+    companyJob = await moveHttpJob(companyJob, "close");
+    await hiringPost(`employer-applications/${appA.id}/offers`, offerBody(), cookie, 409);
+    const acceptedA = await hiringPost(`offers/${offerA.id}/accept`, {}, wa.cookie);
+    const acceptedB = await hiringPost(`offers/${offerB.id}/accept`, {}, wb.cookie);
+    assert.equal((await hiringPost(`offers/${offerA.id}/accept`, {}, wa.cookie)).engagement.id, acceptedA.engagement.id);
+    assert.equal(await db.engagement.count({ where: { jobId: companyJob.id } }), 2);
+    await moveHttpJob(companyJob, "cancel", 409);
+    stage = "Phase 5 HTTP engagement completion and cancellation";
+    await hiringPost(`worker-engagements/${acceptedA.engagement.id}/start`, {}, wa.cookie, 403);
+    await hiringPost(`employer-engagements/${acceptedA.engagement.id}/confirm-completion`, {}, cookie, 409);
+    await hiringPost(`employer-engagements/${acceptedA.engagement.id}/start`, {}, cookie);
+    const requested = await hiringPost(`worker-engagements/${acceptedA.engagement.id}/request-completion`, {}, wa.cookie);
+    assert.equal(requested.engagement.status, "IN_PROGRESS");
+    await hiringPost(`employer-engagements/${acceptedA.engagement.id}/confirm-completion`, {}, cookie);
+    await hiringPost(`worker-engagements/${acceptedB.engagement.id}/cancel`, { category: "SCHEDULE", reason: "Cannot continue" }, wb.cookie);
+    companyJob = await moveHttpJob(companyJob, "complete"); assert.equal(companyJob.status, "COMPLETED");
+    stage = "Phase 5 HTTP cancellation cleanup, rejection and pages";
+    let cleanupJob = await moveHttpJob(await createHttpJob(company.id), "publish");
+    const cleanupApp = await hiringPost(`jobs/${cleanupJob.id}/apply`, { creationKey: randomUUID() }, wc.cookie);
+    await hiringPost(`employer-applications/${cleanupApp.id}/shortlist`, {}, cookie);
+    const pending = await hiringPost(`employer-applications/${cleanupApp.id}/offers`, offerBody(), cookie);
+    const rejectedApp = await hiringPost(`jobs/${cleanupJob.id}/apply`, { creationKey: randomUUID() }, wb.cookie);
+    await hiringPost(`employer-applications/${rejectedApp.id}/reject`, {}, cookie);
+    await hiringPost(`jobs/${cleanupJob.id}/apply`, { creationKey: randomUUID() }, wb.cookie, 409);
+    cleanupJob = await moveHttpJob(cleanupJob, "cancel");
+    assert.equal((await (await request(`${api}/worker-applications/${cleanupApp.id}`, undefined, wc.cookie)).json()).status, "CANCELLED");
+    assert.equal((await db.offer.findUniqueOrThrow({ where: { id: pending.id } })).status, "REVOKED");
+    await hiringPost(`offers/${pending.id}/accept`, {}, wc.cookie, 409);
+    for (const [path, actorCookie] of [["/worker/applications", wa.cookie], [`/worker/applications/${appA.id}`, wa.cookie], [`/employer/jobs/${companyJob.id}/applications`, cookie], [`/employer/applications/${appA.id}`, cookie]]) {
+      const page = await request(path, undefined, actorCookie); assert.equal(page.status, 200); assert.equal(page.headers.get("referrer-policy"), "no-referrer");
+    }
+    assert.equal((await request(`/worker/applications/${appA.id}`, undefined, wb.cookie)).status, 404);
+    assert.equal((await request(`${api}/worker-applications/${appA.id}/offers?limit=1`, undefined, wa.cookie)).status, 200);
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
     assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
@@ -260,7 +357,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2 auth, Phase 3 profiles/company/discovery and Phase 4 jobs/pages/privacy/quota/ownership/status regressions; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2–4 regressions and Phase 5 multi-user apply/pipeline/immutable revisions/closed acceptance/engagement completion/cancellation/material guards/cleanup/privacy/IDOR/pages; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;
@@ -273,6 +370,9 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
       userId ??= (await db.user.findUnique({ where: { email }, select: { id: true } }))?.id;
       if (userId) {
         const jobIds = (await db.job.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
+        await db.engagement.deleteMany({ where: { jobId: { in: jobIds } } });
+        await db.offer.deleteMany({ where: { jobId: { in: jobIds } } });
+        await db.application.deleteMany({ where: { jobId: { in: jobIds } } });
         await db.jobSkill.deleteMany({ where: { jobId: { in: jobIds } } });
         await db.jobScheduleWindow.deleteMany({ where: { jobId: { in: jobIds } } });
         await db.job.deleteMany({ where: { id: { in: jobIds } } });
@@ -285,7 +385,11 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
         await db.userRole.deleteMany({ where: { userId } });
         await db.user.delete({ where: { id: userId } });
       }
-      await db.rateLimit.deleteMany({ where: { key: { startsWith: ratePrefix } } });
+      await db.workerProfile.deleteMany({ where: { userId: { in: hiringUsers } } });
+      await db.verification.deleteMany({ where: { value: { in: hiringUsers } } });
+      await db.userRole.deleteMany({ where: { userId: { in: hiringUsers } } });
+      await db.user.deleteMany({ where: { id: { in: hiringUsers } } });
+      await db.rateLimit.deleteMany({ where: { OR: ratePrefixes.map((prefix) => ({ key: { startsWith: prefix } })) } });
       await db.$disconnect();
     } catch { console.error("FAIL: HTTP fixture cleanup failed; sensitive diagnostics suppressed."); process.exitCode = 1; }
   }

@@ -1,6 +1,6 @@
 # Database foundation
 
-[PRODUCT](PRODUCT.md) is source of truth; [PHASE_0 §6](PHASE_0.md#6-conceptual-database-schema) is the conceptual domain design. Phase 4 adds Job/JobSkill/JobScheduleWindow; Application, Offer and Engagement tables do not exist.
+[PRODUCT](PRODUCT.md) is source of truth; [PHASE_0 §6](PHASE_0.md#6-conceptual-database-schema) is the conceptual domain design. Phase 5 adds separate Application, Offer and Engagement tables to Phase 4 Jobs.
 
 ## Current implementation
 
@@ -53,6 +53,18 @@ Start/end are PostgreSQL DATE, API YYYY-MM-DD, Prisma conversion UTC midnight; t
 Indexes cover owner/status, company/status, status/city/type/mode/id, status/publishedAt/id, category/status/id and skill/job. Public queries currently order by immutable UUID ascending with take+1, default 12/max 30; published timestamp index leaves room for a future deliberate ordering policy. Company and personal-profile row locks serialize the count+transition, including resume. PAUSED still occupies quota. There is no in-memory mutex or counter. Real tests must prove different-actor Company concurrency, membership revocation and fresh User status under these locks.
 
 Integration workflow also runs `pnpm test:jobs` between `test:profiles` and `test:http`. All four integration commands require explicit TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable; all five committed migrations must be applied first. Repeat deploy is expected to be a no-op. Test-only cleanup removes children/jobs before their owned Company/profile/User fixtures; production has no deletion flow. See [PHASE_4](PHASE_4.md) for execution evidence.
+
+## Phase 5 hiring schema and transactions
+
+Additive migration `20261008000100_hiring` adds ApplicationStatus, OfferStatus, EngagementStatus and three separate tables. Previous migrations remain intact. Application has lifetime UNIQUE(jobId,workerProfileId), Job/WorkerProfile RESTRICT FKs, explicit status timestamps and indexed self/Job cursor access. Offer has composite Application+Job consistency FK, unique revision and creation key within Application, a partial UNIQUE(applicationId) WHERE status=PENDING, expiry index and immutable structured JSON terms. Engagement has UNIQUE applicationId/acceptedOfferId and composite FKs that bind the same Job/Worker/Application/Offer; history references use RESTRICT.
+
+Offer SQL update trigger freezes identity, revision, retry key, terms, createdAt and expiresAt, and freezes terminal status/resolution. Engagement insert requires an accepted Application/Offer and the same Offer snapshot; its update trigger freezes identity/accepted terms/time and terminal history. CHECKs bound revisions/expiry, require Offer resolution timestamps, snapshot version and Engagement lifecycle metadata. There is no production history-delete API. Test cleanup explicitly deletes only its own Engagement→Offer→Application→Job fixtures.
+
+Canonical locks: actor User→Company or personal EmployerProfile→Job→Application→Offer→Engagement. User status/role/profile changes and Company revocation use the established same rows. Job serializes application eligibility, acceptance/capacity, work cancellation, finalization and material edits. Occupied slots are actual ACCEPTED/IN_PROGRESS/COMPLETED Engagement rows; CANCELLED is excluded, without cached counters. The active Job quota remains independently three PUBLISHED+PAUSED per owner. SQL uniqueness is final duplicate protection; cross-row capacity is a transaction-service invariant requiring this protocol from every writer.
+
+Snapshots version 1 store exact money strings, structured Job terms/version/ID, historical owner identity/display and timestamps. Engagement copies the accepted Offer snapshot plus Worker display and accepted time. DTOs strip internal owner IDs/actor provenance. Expiry obtains `clock_timestamp() AT TIME ZONE 'UTC'`, explicitly independent of session timezone/Prisma raw timestamp mapping; it is evaluated after acquiring locks. Detail/actions persist PENDING→EXPIRED and OFFERED→SHORTLISTED; denied expired acceptance commits that normalization before returning conflict. No cron is needed for correctness.
+
+Run `pnpm test:hiring` between jobs and HTTP integration. All six committed migrations must be deployed first. Real PostgreSQL tests observe independent connection lock waits for last-slot and expiry races; HTTP retains Phase 2–4 and adds multi-user hiring. Production databases/secrets are never reused. Current execution evidence belongs to PHASE_5; Phase 4 paragraphs above describe historical evidence.
 
 ## Future approved constraints / deferred schemas
 

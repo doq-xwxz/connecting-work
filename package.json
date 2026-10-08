@@ -18,6 +18,7 @@
     "test:http": "prisma generate && node --conditions=react-server --import=tsx scripts/auth-http.ts",
     "test:profiles": "prisma generate && node --conditions=react-server --import=tsx scripts/profiles-integration.ts",
     "test:jobs": "prisma generate && node --conditions=react-server --import=tsx scripts/jobs-integration.ts",
+    "test:hiring": "prisma generate && node --conditions=react-server --import=tsx scripts/hiring-integration.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

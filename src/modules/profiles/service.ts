@@ -7,7 +7,7 @@ import { requireEmployerProfile, requireWorkerProfile } from "./access";
 import { availabilityIndicator, completeness, discoveryOptInSchema, discoverySchema, employerSchema, opaqueId, parse, workerSchema,
   type EmployerSelf, type WorkerDiscovery, type WorkerInput, type WorkerSelf } from "./contracts";
 
-const workerSelect = { id: true, headline: true, bio: true, city: true, timezone: true, discoverable: true,
+export const workerSelect = { id: true, headline: true, bio: true, city: true, timezone: true, discoverable: true,
   user: { select: { name: true } }, preferences: { select: { type: true }, orderBy: { type: "asc" } },
   workModes: { select: { mode: true }, orderBy: { mode: "asc" } },
   skills: { where: { skill: { active: true } }, select: { skillId: true, level: true, skill: { select: { name: true } } }, orderBy: { skillId: "asc" } },

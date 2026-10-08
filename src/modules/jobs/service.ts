@@ -10,6 +10,7 @@ import { createJobSchema, duplicateSchema, FREE_ACTIVE_LIMIT, managementQuerySch
   type JobAction, type JobInput, type Quota } from "./contracts";
 import { classifyJobEdit, duplicateTerms, isActive, nextStatus, ownsJob, permitsRestrictedActor, requireEditableTerms, requirePublishable, requireQuota } from "./policy";
 import { inputFromRow, jobSelect, managedJobDto, publicJobDto } from "./projection";
+import { hiringEditContext, finishRecruitment } from "@/modules/hiring/job-query";
 
 async function lockOwner(tx: Prisma.TransactionClient, actor: Principal, profileId: string, companyId: string | null) {
   if (companyId) {
@@ -17,7 +18,7 @@ async function lockOwner(tx: Prisma.TransactionClient, actor: Principal, profile
     await requireCompanyMembership(tx, actor.id, companyId);
   } else await tx.$queryRaw`SELECT "id" FROM "EmployerProfile" WHERE "id" = ${profileId} FOR UPDATE`;
 }
-async function managedRow(tx: Prisma.TransactionClient, actor: Principal, profileId: string, id: string, lock: boolean) {
+export async function managedRow(tx: Prisma.TransactionClient, actor: Principal, profileId: string, id: string, lock: boolean) {
   const scope = await tx.job.findUnique({ where: { id }, select: { employerProfileId: true, companyId: true } });
   if (!scope) throw new AppError("NOT_FOUND");
   if (!scope.companyId && !ownsJob(profileId, scope, false)) throw new AppError("NOT_FOUND");
@@ -81,8 +82,7 @@ export async function editJob(db: PrismaClient, actor: Principal, id: string, ra
     const user = await currentActor(tx, actor, "EMPLOYER", true, true); const profile = await requireEmployerProfile(tx, actor.id);
     const row = await managedRow(tx, actor, profile.id, id, true);
     if (row.version !== expectedVersion || !["DRAFT", "PUBLISHED", "PAUSED"].includes(row.status)) throw new AppError("CONFLICT");
-    // Phase 5 must replace this explicit context with real facts under the Job lock.
-    requireEditableTerms(inputFromRow(row), input, { phase: "PRE_HIRING" });
+    requireEditableTerms(inputFromRow(row), input, await hiringEditContext(tx, id));
     await requireActiveSkills(tx, input);
     if (isActive(row.status)) { if (!user.emailVerified) throw new AppError("FORBIDDEN"); requirePublishable(input); }
     await tx.jobSkill.deleteMany({ where: { jobId: id } }); await tx.jobScheduleWindow.deleteMany({ where: { jobId: id } });
@@ -104,6 +104,7 @@ export async function transitionJob(db: PrismaClient, actor: Principal, id: stri
       requireQuota((await quotaFor(tx, row)).active, row.status);
     }
     const now = new Date();
+    if (status === "CANCELLED" || status === "COMPLETED") await finishRecruitment(tx, id, status, now);
     const updated = await tx.job.update({ where: { id }, data: { status, version: { increment: 1 },
       ...(status === "PUBLISHED" && !row.publishedAt ? { publishedAt: now } : {}),
       ...(status === "CLOSED" ? { closedAt: now } : {}), ...(status === "CANCELLED" ? { cancelledAt: now } : {}) }, select: jobSelect });

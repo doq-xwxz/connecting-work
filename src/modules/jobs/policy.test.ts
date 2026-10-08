@@ -53,7 +53,7 @@ describe("exact job inputs and publish validation", () => {
 });
 describe("job lifecycle, quota and ownership", () => {
   const valid = new Map([ ["DRAFT:publish", "PUBLISHED"], ["DRAFT:cancel", "CANCELLED"], ["PUBLISHED:pause", "PAUSED"], ["PAUSED:resume", "PUBLISHED"],
-    ["PUBLISHED:close", "CLOSED"], ["PAUSED:close", "CLOSED"], ["PUBLISHED:cancel", "CANCELLED"], ["PAUSED:cancel", "CANCELLED"] ]);
+    ["PUBLISHED:close", "CLOSED"], ["PAUSED:close", "CLOSED"], ["PUBLISHED:cancel", "CANCELLED"], ["PAUSED:cancel", "CANCELLED"], ["CLOSED:cancel", "CANCELLED"], ["CLOSED:complete", "COMPLETED"] ]);
   for (const status of statuses) for (const action of actions) it(`${status} / ${action}`, () => {
     const target = valid.get(`${status}:${action}`);
     if (target) expect(nextStatus(status, action)).toBe(target); else expect(() => nextStatus(status, action)).toThrow();

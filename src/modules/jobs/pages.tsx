@@ -15,6 +15,8 @@ import { getManagedJob, getPublicJob, listManagedJobs, listPublicJobs } from "./
 import { JobForm } from "./components/job-form";
 import { JobActions } from "./components/job-actions";
 import { preferences, workModes } from "@/modules/profiles/contracts";
+import { getApplyState } from "@/modules/hiring/service";
+import { ApplyButton } from "@/modules/hiring/components/actions";
 
 type Query = Record<string, string | string[] | undefined>;
 async function management(title: string, render: (actor: Principal) => Promise<ReactNode>) {
@@ -63,6 +65,7 @@ export function JobManagementPage({ id, edit = false }: { id: string; edit?: boo
       <p className="mt-3">{job.publishValidation.valid ? "Nội dung đã đủ để kiểm tra đăng tin." : `Còn thiếu: ${job.publishValidation.missingFields.join(", ")}`}</p>
       <p className="text-sm">Đăng/tiếp tục còn yêu cầu email đã xác thực, tài khoản được phép hoạt động và hạn mức.</p>
       <JobActions job={job} active={actor.status === "ACTIVE"} />
+      <Link className="mb-5 block underline" href={`/employer/jobs/${job.id}/applications`}>Quản lý ứng viên</Link>
       {!edit && <Link className="mb-5 block underline" href={`/employer/jobs/${job.id}/edit`}>Mở trang chỉnh sửa</Link>}
       <JobForm job={job} skills={skills} active={actor.status === "ACTIVE"} /></>;
   });
@@ -95,11 +98,20 @@ export async function PublicJobPage({ id }: { id: string }) {
     return <main className="mx-auto max-w-3xl px-6 py-12"><h1 className="text-2xl font-semibold">Không thể tải tin</h1><Link href="/jobs">Về danh sách</Link></main>;
   }
   const days = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  let apply: ReactNode = <p>Hoàn thiện hồ sơ tìm việc và xác thực email để ứng tuyển.</p>;
+  try {
+    const actor = await requireAuthenticatedUser(await headers());
+    const state = await getApplyState(getDb(), actor, id);
+    if (state.applicationId) apply = <Link className="underline" href={`/worker/applications/${state.applicationId}`}>Xem hồ sơ ứng tuyển của bạn</Link>;
+    else if (state.eligible) apply = <ApplyButton jobId={id} />;
+  } catch (error) {
+    if (error instanceof AppError && error.code === "UNAUTHENTICATED") apply = <Link className="underline" href="/sign-in">Đăng nhập để ứng tuyển</Link>;
+  }
   return <main className="mx-auto max-w-3xl space-y-5 px-6 py-12"><Link className="underline" href="/jobs">Về danh sách</Link><h1 className="text-3xl font-semibold">{job.title}</h1>
     <p>{job.owner.displayName} · {job.owner.kind === "COMPANY" ? (job.owner.verification === "VERIFIED" ? "Công ty đã xác minh" : "Công ty chưa xác minh") : "Người thuê cá nhân"}</p>
     <p>{job.category} · {job.employmentType} · {job.workMode} · {job.city || "Từ xa"}</p><Compensation job={job} /><p>Cần {job.headcount} người</p>
     <p className="whitespace-pre-wrap">{job.description}</p><p>Thời gian: {job.startDate || "Chưa xác định ngày bắt đầu"} → {job.endDate || "Chưa xác định ngày kết thúc"}</p>
     <section><h2 className="text-xl font-semibold">Lịch làm việc · {job.timezone}</h2><ul>{job.schedule.map((slot) => <li key={`${slot.weekday}-${slot.startHour}`}>{days[slot.weekday]}: {slot.startHour}:00–{slot.endHour}:00</li>)}</ul>{!job.schedule.length && <p>Không có lịch tuần cố định.</p>}</section>
     <section><h2 className="text-xl font-semibold">Kỹ năng</h2><ul>{job.skills.map((skill) => <li key={skill.skillId}>{skill.name} · {skill.minimumLevel} · {skill.required ? "Bắt buộc" : "Ưu tiên"}</li>)}</ul></section>
-    <p className="rounded-md border p-4">Quy trình ứng tuyển chưa được mở ở giai đoạn này.</p></main>;
+    <section className="rounded-md border p-4">{apply}</section></main>;
 }

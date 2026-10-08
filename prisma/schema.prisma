@@ -175,6 +175,8 @@ model WorkerProfile {
   preferences  WorkerPreference[]
   workModes    WorkerWorkMode[]
   availability WorkerAvailability[]
+  applications Application[]
+  engagements Engagement[]
 
   @@index([discoverable, city, id])
 }
@@ -319,6 +321,9 @@ model Job {
   cancelledAt       DateTime?
   skills            JobSkill[]
   schedule          JobScheduleWindow[]
+  applications      Application[]
+  offers            Offer[]
+  engagements       Engagement[]
 
   @@unique([createdByUserId, creationKey])
   @@index([status, id])
@@ -327,6 +332,108 @@ model Job {
   @@index([status, city, employmentType, workMode, id])
   @@index([status, publishedAt, id])
   @@index([category, status, id])
+}
+
+enum ApplicationStatus {
+  APPLIED
+  VIEWED
+  SHORTLISTED
+  OFFERED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+  EXPIRED
+}
+
+enum EngagementStatus {
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Application {
+  id              String @id @default(uuid())
+  jobId           String
+  workerProfileId String
+  creationKey     String
+  status          ApplicationStatus @default(APPLIED)
+  appliedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  viewedAt        DateTime?
+  shortlistedAt   DateTime?
+  offeredAt       DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  withdrawnAt     DateTime?
+  cancelledAt     DateTime?
+  job             Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
+  offers          Offer[]
+  engagement      Engagement?
+
+  @@unique([jobId, workerProfileId])
+  @@unique([id, jobId])
+  @@unique([id, jobId, workerProfileId])
+  @@index([workerProfileId, id])
+  @@index([jobId, status, id])
+}
+
+model Offer {
+  id            String @id @default(uuid())
+  applicationId String
+  jobId         String
+  creationKey   String
+  revision      Int
+  status        OfferStatus @default(PENDING)
+  terms         Json
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime?
+  resolvedAt    DateTime?
+  application   Application @relation(fields: [applicationId, jobId], references: [id, jobId], onDelete: Restrict)
+  job           Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  engagement    Engagement?
+
+  @@unique([applicationId, creationKey])
+  @@unique([applicationId, revision])
+  @@unique([id, applicationId, jobId])
+  @@index([status, expiresAt])
+}
+
+model Engagement {
+  id                    String @id @default(uuid())
+  applicationId         String @unique
+  acceptedOfferId       String @unique
+  jobId                 String
+  workerProfileId       String
+  status                EngagementStatus @default(ACCEPTED)
+  terms                 Json
+  acceptedAt            DateTime @default(now())
+  startedAt             DateTime?
+  completionRequestedAt DateTime?
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancellationCategory  String?
+  cancellationReason    String?
+  updatedAt             DateTime @updatedAt
+  application           Application @relation(fields: [applicationId, jobId, workerProfileId], references: [id, jobId, workerProfileId], onDelete: Restrict)
+  acceptedOffer         Offer @relation(fields: [acceptedOfferId, applicationId, jobId], references: [id, applicationId, jobId], onDelete: Restrict)
+  job                   Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  worker                WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
+
+  @@index([jobId, status])
+  @@unique([applicationId, jobId, workerProfileId])
+  @@unique([acceptedOfferId, applicationId, jobId])
+  @@index([workerProfileId, status, id])
 }
 
 model JobSkill {
