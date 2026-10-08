@@ -4,7 +4,7 @@ Implementation/review: 2026-10-08. PRODUCT and approved Phase 0–5 reports/migr
 
 ## 1. Phase 6 Summary
 
-Implemented PostgreSQL Job FTS, bounded composable filters/keyset pages, pure deterministic Worker↔Job matching, private Worker/Employer recommendations with explanations/coverage and immutable minimal match-at-apply metadata. Existing hiring/ownership/quota and auth flows remain authoritative. Local checks and real disposable PostgreSQL/Next HTTP passed; Git publication evidence is recorded in §22 after remote verification.
+Implemented PostgreSQL Job FTS, bounded composable filters/keyset pages, pure deterministic Worker↔Job matching, private Worker/Employer recommendations with explanations/coverage and immutable minimal match-at-apply metadata. Existing hiring/ownership/quota and auth flows remain authoritative. Local checks, real disposable PostgreSQL/Next HTTP and both GitHub Actions jobs passed; verified implementation publication evidence is recorded in §22.
 
 ## 2. D1 matching decisions resolved
 
@@ -107,7 +107,7 @@ Final local results on Node 24.20.0 / pnpm 11.25.0 / actual PostgreSQL 18.6:
 | Phase 6 PostgreSQL integration | PASS | Scope/status/opt-in, score/coverage, snapshot immutability/legacy null, coarse location, optional/required levels, current/departed management and real 203→200/30 bounds/query counts |
 | FTS tests | PASS | Unicode weighted title/description, updates/state visibility, composable filters, pay units, keyset pages, invalid syntax/cursors/injection and index catalog/EXPLAIN |
 | HTTP tests | PASS | Actual Next/Better Auth/PostgreSQL Phase 2–6 routes/pages, privacy/IDOR/opt-out, apply metadata injection, match snapshot and score/version UI; only test email intercepted |
-| GitHub Actions | Pending remote verification | See §22; no PASS claimed until exact pushed head/jobs checked |
+| GitHub Actions | PASS | Exact implementation SHA/run verified; checks and postgres-auth both completed success, see §22 |
 
 Earlier local failures were resolved: uppercase Vietnamese under locale C required explicit Unicode lowercasing; tiny-fixture plan expectation incorrectly demanded GIN over another valid index. Authored tests were rerun on the repaired implementation. pg 8.23.1 adapter emits the known nonblocking concurrent-client-query deprecation warning also present in prior phases; no dependency upgrade or suppressed failure. This is not a browser automation/production penetration or load test.
 
@@ -125,8 +125,10 @@ Title/description-only FTS deliberately avoids a cross-table Skill trigger graph
 
 ## 21. Remaining blockers
 
-No unresolved local implementation/test blocker. Remote publication/CI remains pending until §22 evidence is filled. Production deployment/operational setup and future components are outside this authorization, not fabricated PASS results. Stop at Phase 6 review.
+No unresolved implementation, local test, publication or CI blocker. Production deployment/operational setup and future components are outside this authorization, not fabricated PASS results. Temporary PostgreSQL binaries/data/credentials were removed after its process stopped and the absolute cleanup target was verified. Stop at Phase 6 review.
 
 ## 22. Git commit / remote CI evidence
 
-Pending publication after final diff/secret/generated-file review and verification. Standing authorization permits automatic commit/push on current main without further confirmation. Exact commit, origin/main SHA and both GitHub Actions jobs will be recorded after observed results; no force push/history rewrite or deployment.
+Implementation commit: [`e54b4c2c26669c934b175c37579584b013d02d6c`](https://github.com/doq-xwxz/connecting-work/commit/e54b4c2c26669c934b175c37579584b013d02d6c), pushed to current main. `git ls-remote origin refs/heads/main` returned that exact SHA. [GitHub Actions run 37726444119](https://github.com/doq-xwxz/connecting-work/actions/runs/37726444119) returned head_sha matching it, status=completed, conclusion=success; both checks and postgres-auth completed success, including the new matching and extended HTTP steps.
+
+Reviewed 28 staged files, formulas, SQL bindings/indexability, scope/DTOs and bounds; diff --check passed, historical PRODUCT/reports/migrations and pnpm lockfile unchanged. Secret-pattern scan had no matches; ignored credential/env/generated/cache/test data paths were absent from staged/tracked changes. The first push hit a transient network disconnect; normal retry succeeded, without force or history rewrite. This documentation-only follow-up records observed evidence; its final remote head/CI are verified separately in the task delivery. No deployment or Phase 7 work occurred.
