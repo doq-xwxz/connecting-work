@@ -11,6 +11,7 @@ import { getDb } from "@/shared/db/client";
 import { AppError } from "@/shared/errors/app-error";
 import { getApplication, listApplications, listOffers } from "./service";
 import { HiringActions } from "./components/actions";
+import { OpenConversation } from "@/modules/messaging/components/chat";
 
 type Query = Record<string, string | string[] | undefined>;
 async function guarded(title: string, render: (actor: Principal) => Promise<ReactNode>) {
@@ -49,6 +50,7 @@ export function ApplicationPage({ side, id, query }: { side: "WORKER" | "EMPLOYE
         <p>{application.offer.terms.job.startDate ?? "Chưa có ngày bắt đầu"} → {application.offer.terms.job.endDate ?? "Chưa có ngày kết thúc"} · {application.offer.terms.job.timezone}</p>
         <ul>{application.offer.terms.job.schedule.map((slot) => <li key={`${slot.weekday}-${slot.startHour}`}>Ngày tuần {slot.weekday}: {slot.startHour}:00–{slot.endHour}:00</li>)}</ul><p>Hết hạn: {application.offer.expiresAt ?? "Không đặt hạn"}</p></section>}
       <HiringActions application={application} side={side} active={actor.status === "ACTIVE"} />
+      <OpenConversation applicationId={application.id} side={side} />
       {engagement && <section className="space-y-3 rounded-md border p-4"><h2 className="text-xl font-semibold">Quan hệ làm việc: {engagement.status}</h2><p>{engagement.terms.owner.displayName} · {engagement.terms.worker.displayName}</p><p>{engagement.terms.job.title} · {engagement.terms.job.workMode} · {engagement.terms.job.city || "Từ xa"}</p><Compensation job={engagement.terms.job} /><p>Đã nhận: {engagement.acceptedAt}</p><p>Yêu cầu hoàn thành: {engagement.completionRequestedAt ?? "Chưa yêu cầu"}</p><p>{engagement.cancellationReason}</p></section>}
       <section className="space-y-4"><h2 className="text-xl font-semibold">Lịch sử đề nghị</h2>{offers.items.map((offer) => <article key={offer.id} className="space-y-2 rounded-md border p-4"><h3 className="font-semibold">Lần {offer.revision} · {offer.status}</h3><p>{offer.terms.owner.displayName} · {offer.terms.job.title}</p><Compensation job={offer.terms.job} /><p>{offer.terms.job.employmentType} · {offer.terms.job.workMode} · {offer.terms.job.city || "Từ xa"}</p><p>{offer.terms.job.startDate ?? "Chưa có ngày bắt đầu"} → {offer.terms.job.endDate ?? "Chưa có ngày kết thúc"} · {offer.terms.job.timezone}</p><ul>{offer.terms.job.schedule.map((slot) => <li key={`${slot.weekday}-${slot.startHour}`}>Ngày tuần {slot.weekday}: {slot.startHour}:00–{slot.endHour}:00</li>)}</ul><p>Hết hạn: {offer.expiresAt ?? "Không đặt hạn"}</p></article>)}
         {offers.nextCursor && <Link className="underline" href={`?cursor=${offers.nextCursor}`}>Các đề nghị tiếp theo</Link>}</section></>;

@@ -36,6 +36,11 @@ model User {
   companyMemberships CompanyMember[]
   createdCompanies   Company[]        @relation("CompanyCreator")
   createdJobs        Job[]            @relation("JobCreator")
+  messages           Message[]
+  conversationReads ConversationReadState[]
+  notifications     Notification[]
+  blocksMade        UserBlock[] @relation("Blocker")
+  blocksReceived    UserBlock[] @relation("Blocked")
 }
 
 model Session {
@@ -177,6 +182,7 @@ model WorkerProfile {
   availability WorkerAvailability[]
   applications Application[]
   engagements Engagement[]
+  conversations Conversation[]
 
   @@index([discoverable, city, id])
 }
@@ -324,6 +330,7 @@ model Job {
   applications      Application[]
   offers            Offer[]
   engagements       Engagement[]
+  conversations     Conversation[]
 
   @@unique([createdByUserId, creationKey])
   @@index([status, id])
@@ -385,6 +392,7 @@ model Application {
   worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
   offers          Offer[]
   engagement      Engagement?
+  conversation    Conversation?
 
   @@unique([jobId, workerProfileId])
   @@unique([id, jobId])
@@ -464,4 +472,94 @@ model JobScheduleWindow {
 
   @@unique([jobId, weekday, startHour, endHour])
   @@index([jobId, weekday])
+}
+
+enum MessageSide {
+  WORKER
+  EMPLOYER
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+}
+
+model Conversation {
+  id String @id @default(uuid())
+  applicationId String @unique
+  jobId String
+  workerProfileId String
+  application Application @relation(fields: [applicationId, jobId, workerProfileId], references: [id, jobId, workerProfileId], onDelete: Restrict)
+  job Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  worker WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastMessageAt DateTime?
+  messages Message[]
+  reads ConversationReadState[]
+  notifications Notification[]
+
+  @@unique([jobId, workerProfileId])
+  @@index([workerProfileId, id])
+  @@index([jobId, id])
+  @@index([lastMessageAt, id])
+  @@unique([applicationId, jobId, workerProfileId])
+}
+
+model Message {
+  id String @id @default(uuid())
+  conversationId String
+  senderUserId String
+  senderSide MessageSide
+  body String
+  creationKey String
+  createdAt DateTime @default(now())
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  sender User @relation(fields: [senderUserId], references: [id], onDelete: Restrict)
+  reads ConversationReadState[]
+  notifications Notification[]
+
+  @@unique([conversationId, senderUserId, creationKey])
+  @@unique([id, conversationId])
+  @@index([conversationId, createdAt, id])
+  @@index([senderUserId])
+}
+
+model ConversationReadState {
+  conversationId String
+  userId String
+  lastReadMessageId String
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  lastReadMessage Message @relation(fields: [lastReadMessageId, conversationId], references: [id, conversationId], onDelete: Restrict)
+  updatedAt DateTime @updatedAt
+
+  @@id([conversationId, userId])
+  @@index([userId, conversationId])
+}
+
+model UserBlock {
+  blockerUserId String
+  blockedUserId String
+  createdAt DateTime @default(now())
+  blocker User @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Restrict)
+  blocked User @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Restrict)
+
+  @@id([blockerUserId, blockedUserId])
+  @@index([blockedUserId, blockerUserId])
+}
+
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  type NotificationType @default(NEW_MESSAGE)
+  conversationId String
+  lastMessageId String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  lastMessage Message @relation(fields: [lastMessageId, conversationId], references: [id, conversationId], onDelete: Restrict)
+
+  @@index([userId, readAt, createdAt, id])
+  @@index([conversationId])
 }

@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "X-Frame-Options", value: "DENY" },
-    ] }, ...["/verify-email", "/reset-password", "/account", "/worker/:path*", "/employer/:path*"].map((source) => ({ source, headers: [
+    ] }, ...["/verify-email", "/reset-password", "/account", "/notifications", "/worker/:path*", "/employer/:path*"].map((source) => ({ source, headers: [
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "Cache-Control", value: "no-store" },
     ] }))];

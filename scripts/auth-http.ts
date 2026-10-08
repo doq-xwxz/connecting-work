@@ -259,6 +259,57 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     stage = "Phase 5 HTTP apply, scope, explicit pipeline and material restrictions";
     const applyKey = randomUUID();
     const appA = await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: applyKey }, wa.cookie);
+    stage = "Phase 7 HTTP Application entitlement, send, retry, pagination, privacy and blocks";
+    const conversation = await hiringPost(`worker-applications/${appA.id}/conversation`, {}, wa.cookie);
+    assert.equal((await hiringPost(`employer-applications/${appA.id}/conversation`, {}, cookie)).id, conversation.id);
+    const workerChat = `worker-conversations/${conversation.id}`, employerChat = `employer-conversations/${conversation.id}`;
+    const messageBody = { creationKey: randomUUID(), body: "<script>alert('plain')</script>\r\nHello" };
+    const workerMessage = await hiringPost(`${workerChat}/messages`, messageBody, wa.cookie);
+    assert.equal((await hiringPost(`${workerChat}/messages`, messageBody, wa.cookie)).id, workerMessage.id);
+    await hiringPost(`${workerChat}/messages`, { ...messageBody, body: "Changed" }, wa.cookie, 409);
+    await hiringPost(`${workerChat}/messages`, { ...messageBody, senderUserId: wa.id }, wa.cookie, 400);
+    await hiringPost(`${workerChat}/messages`, { ...messageBody, senderSide: "EMPLOYER" }, wa.cookie, 400);
+    await hiringPost(`${workerChat}/messages`, { creationKey: randomUUID(), body: "x".repeat(20_000) }, wa.cookie, 400);
+    const employerMessage = await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Employer reply" }, cookie);
+    for (const secret of [wa.id, wa.email, "senderUserId", "emailVerified"]) assert.ok(!JSON.stringify(employerMessage).includes(secret));
+    assert.equal((await request(`${api}/${workerChat}`, undefined, wb.cookie)).status, 404);
+    assert.equal((await request(`${api}/${employerChat}`, undefined, wa.cookie)).status, 403);
+    assert.equal((await request(`${api}/worker-conversations?limit=51`, undefined, wa.cookie)).status, 400);
+    assert.equal((await request(`${api}/${workerChat}/messages?limit=1&limit=2`, undefined, wa.cookie)).status, 400);
+    const recentMessage = await (await request(`${api}/${workerChat}/messages?limit=1`, undefined, wa.cookie)).json();
+    assert.equal(recentMessage.items[0].id, employerMessage.id);
+    const olderMessage = await (await request(`${api}/${workerChat}/messages?before=${recentMessage.oldest}&limit=1`, undefined, wa.cookie)).json(); assert.equal(olderMessage.items[0].id, workerMessage.id);
+    const polled = await (await request(`${api}/${workerChat}/messages?after=${workerMessage.id}`, undefined, wa.cookie)).json(); assert.equal(polled.items[0].id, employerMessage.id);
+    const notificationPage = await (await request(`${api}/notifications`, undefined, wa.cookie)).json();
+    const messageNotification = notificationPage.items.find((n: { messageId: string }) => n.messageId === employerMessage.id); assert.ok(messageNotification);
+    await hiringPost(`notifications/${messageNotification.id}/read`, { messageId: employerMessage.id }, wb.cookie, 404);
+    await hiringPost(`notifications/${messageNotification.id}/read`, { messageId: employerMessage.id }, wa.cookie);
+    await hiringPost(`${workerChat}/read`, { messageId: workerMessage.id }, wa.cookie);
+    assert.equal((await (await request(`${api}/worker-conversations`, undefined, wa.cookie)).json()).unreadMessages, 0);
+    const crossSend = await fetch(`${origin}${api}/${workerChat}/messages`, { method: "POST", headers: { origin: "https://other.invalid", cookie: wa.cookie, "content-type": "application/json" }, body: JSON.stringify(messageBody) }); assert.equal(crossSend.status, 403);
+    await hiringPost(`${workerChat}/block`, { messageId: employerMessage.id, blocked: true }, wa.cookie);
+    await hiringPost(`${workerChat}/messages`, { creationKey: randomUUID(), body: "Blocked" }, wa.cookie, 403);
+    await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Reverse blocked" }, cookie, 403);
+    assert.equal((await request(`${api}/${workerChat}/messages`, undefined, wa.cookie)).status, 200);
+    await hiringPost(`${workerChat}/block`, { messageId: employerMessage.id, blocked: false }, wa.cookie);
+    await db.user.update({ where: { id: wa.id }, data: { status: "SUSPENDED" } });
+    await hiringPost(`${workerChat}/messages`, { creationKey: randomUUID(), body: "New recruiting denied" }, wa.cookie, 403);
+    await db.user.update({ where: { id: wa.id }, data: { status: "ACTIVE" } });
+    const wm = await hiringWorker();
+    assert.equal((await request("/api/account/roles", { role: "EMPLOYER" }, wm.cookie)).status, 200);
+    assert.equal((await request(`${api}/employer`, { type: "INDIVIDUAL", city: null, description: "" }, wm.cookie)).status, 200);
+    await db.companyMember.create({ data: { companyId: company.id, userId: wm.id, role: "MANAGER" } });
+    await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Manager authorship" }, wm.cookie);
+    assert.equal((await request(`${api}/company/${company.id}/members/${wm.id}`, {}, cookie, "DELETE")).status, 200);
+    assert.equal((await request(`${api}/${employerChat}`, undefined, wm.cookie)).status, 404);
+    await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Former manager" }, wm.cookie, 404);
+    assert.equal((await (await request(`${api}/employer-conversations`, undefined, wm.cookie)).json()).items.length, 0);
+    assert.equal((await request(`${api}/messages/${wa.id}`, { body: "Arbitrary DM" }, cookie)).status, 404);
+    for (const [path, actorCookie] of [["/worker/messages", wa.cookie], ["/employer/messages", cookie], [`/worker/messages/${conversation.id}`, wa.cookie], [`/employer/messages/${conversation.id}`, cookie], ["/notifications", wa.cookie]]) {
+      const messagePage = await request(path, undefined, actorCookie); assert.equal(messagePage.status, 200); assert.equal(messagePage.headers.get("referrer-policy"), "no-referrer");
+      const html = await messagePage.text(); if (path.endsWith(conversation.id)) { assert.ok(html.includes("&lt;script&gt;")); assert.ok(!html.includes("<script>alert('plain')</script>")); }
+    }
+    stage = "Phase 5 HTTP apply, scope, explicit pipeline and material restrictions";
     assert.equal((await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: applyKey }, wa.cookie)).id, appA.id);
     await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID() }, wa.cookie, 409);
     await hiringPost(`jobs/${companyJob.id}/apply`, { creationKey: randomUUID(), workerProfileId: workerProfile.id }, wb.cookie, 400);
@@ -307,6 +358,12 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await hiringPost(`offers/${offerA.id}/accept`, {}, wa.cookie)).engagement.id, acceptedA.engagement.id);
     assert.equal(await db.engagement.count({ where: { jobId: companyJob.id } }), 2);
     await moveHttpJob(companyJob, "cancel", 409);
+    stage = "Phase 7 HTTP active obligation survives block, CLOSED, opt-out and suspension";
+    await hiringPost(`${workerChat}/block`, { messageId: employerMessage.id, blocked: true }, wa.cookie);
+    await db.user.update({ where: { id: wa.id }, data: { status: "SUSPENDED" } });
+    await hiringPost(`${workerChat}/messages`, { creationKey: randomUUID(), body: "Active obligation remains available" }, wa.cookie);
+    await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Active work reply" }, cookie);
+    await db.user.update({ where: { id: wa.id }, data: { status: "ACTIVE" } });
     stage = "Phase 5 HTTP engagement completion and cancellation";
     await hiringPost(`worker-engagements/${acceptedA.engagement.id}/start`, {}, wa.cookie, 403);
     await hiringPost(`employer-engagements/${acceptedA.engagement.id}/confirm-completion`, {}, cookie, 409);
@@ -316,6 +373,10 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await hiringPost(`employer-engagements/${acceptedA.engagement.id}/confirm-completion`, {}, cookie);
     await hiringPost(`worker-engagements/${acceptedB.engagement.id}/cancel`, { category: "SCHEDULE", reason: "Cannot continue" }, wb.cookie);
     companyJob = await moveHttpJob(companyJob, "complete"); assert.equal(companyJob.status, "COMPLETED");
+    await hiringPost(`${workerChat}/messages`, { creationKey: randomUUID(), body: "Terminal denied" }, wa.cookie, 403);
+    assert.equal((await request(`${api}/${workerChat}/messages`, undefined, wa.cookie)).status, 200);
+    await hiringPost(`${workerChat}/block`, { messageId: employerMessage.id, blocked: false }, wa.cookie);
+    await hiringPost(`${employerChat}/messages`, { creationKey: randomUUID(), body: "Terminal still read-only" }, cookie, 403);
     assert.deepEqual((await (await request(`${api}/worker-applications/${appA.id}`, undefined, wa.cookie)).json()).matchAtApply, appA.matchAtApply);
     stage = "Phase 5 HTTP cancellation cleanup, rejection and pages";
     let cleanupJob = await moveHttpJob(await createHttpJob(company.id), "publish");
@@ -394,7 +455,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2–5 regressions and Phase 6 FTS/search/score/coverage/recommendations/opt-in/privacy/IDOR/pages/apply snapshot; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2–6 regressions and Phase 7 chat/send/retry/poll/history/read/block/Company revocation/suspended active obligations/terminal history/notifications/IDOR/XSS/origin/bounds; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;
@@ -407,6 +468,12 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
       userId ??= (await db.user.findUnique({ where: { email }, select: { id: true } }))?.id;
       if (userId) {
         const jobIds = (await db.job.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
+        const chatIds = (await db.conversation.findMany({ where: { jobId: { in: jobIds } }, select: { id: true } })).map((item) => item.id);
+        await db.notification.deleteMany({ where: { conversationId: { in: chatIds } } }); await db.conversationReadState.deleteMany({ where: { conversationId: { in: chatIds } } });
+        await db.message.deleteMany({ where: { conversationId: { in: chatIds } } }); await db.conversation.deleteMany({ where: { id: { in: chatIds } } });
+        const chatUsers = [userId, ...hiringUsers];
+        await db.userBlock.deleteMany({ where: { OR: [{ blockerUserId: { in: chatUsers } }, { blockedUserId: { in: chatUsers } }] } });
+        await db.rateLimit.deleteMany({ where: { OR: chatUsers.flatMap((id) => [{ key: `message:user:${id}` }, { key: { startsWith: `message:conversation:${id}:` } }]) } });
         await db.engagement.deleteMany({ where: { jobId: { in: jobIds } } });
         await db.offer.deleteMany({ where: { jobId: { in: jobIds } } });
         await db.application.deleteMany({ where: { jobId: { in: jobIds } } });
@@ -423,6 +490,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
         await db.user.delete({ where: { id: userId } });
       }
       await db.workerProfile.deleteMany({ where: { userId: { in: hiringUsers } } });
+      await db.employerProfile.deleteMany({ where: { userId: { in: hiringUsers } } });
       await db.verification.deleteMany({ where: { value: { in: hiringUsers } } });
       await db.userRole.deleteMany({ where: { userId: { in: hiringUsers } } });
       await db.user.deleteMany({ where: { id: { in: hiringUsers } } });

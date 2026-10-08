@@ -13,6 +13,7 @@ import { actions } from "@/modules/jobs/contracts";
 import { actOnApplication, actOnEngagement, actOnOffer, applyToJob, createOffer, getApplication, listApplications, listOffers } from "@/modules/hiring/service";
 import { applicationActions, engagementActions, offerActions } from "@/modules/hiring/contracts";
 import { recommendedJobs, recommendedCandidates } from "@/modules/matching/service";
+import { getConversation, listConversations, listMessages, listNotifications, markConversationRead, openConversation, readNotification, sendMessage, setBlock } from "@/modules/messaging/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,9 +35,15 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     }
     const actor = await requireAuthenticatedUser(request.headers);
     let result: unknown;
+    const chatSide = area === "worker-conversations" ? "WORKER" : area === "employer-conversations" ? "EMPLOYER" : null;
+    if (request.method !== "GET" && (chatSide || area === "notifications")) parse(z.strictObject({}), query);
     if (["worker-applications", "employer-applications", "offers", "worker-engagements", "employer-engagements"].includes(area) && (request.method !== "GET" || path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET") {
-      if (area === "worker-recommendations" && path.length === 1) result = await recommendedJobs(db, actor, query);
+      if (chatSide && path.length === 1) result = await listConversations(db, actor, chatSide, query);
+      else if (chatSide && path.length === 2) { parse(z.strictObject({}), query); result = await getConversation(db, actor, chatSide, id); }
+      else if (chatSide && path.length === 3 && action === "messages") result = await listMessages(db, actor, chatSide, id, query);
+      else if (area === "notifications" && path.length === 1) result = await listNotifications(db, actor, query);
+      else if (area === "worker-recommendations" && path.length === 1) result = await recommendedJobs(db, actor, query);
       else if (area === "employer-jobs" && path.length === 3 && action === "candidates") result = await recommendedCandidates(db, actor, id, query);
       else if (area === "worker-applications" && path.length === 1) result = await listApplications(db, actor, "WORKER", query);
       else if (["worker-applications", "employer-applications"].includes(area) && path.length === 3 && action === "offers") result = await listOffers(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, query);
@@ -55,7 +62,12 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     } else {
       const body = await readJsonBody(request);
       if (area === "employer-jobs") parse(z.strictObject({}), query);
-      if (request.method === "POST" && path.length === 3 && area === "jobs" && action === "apply") { parse(z.strictObject({}), query); result = await applyToJob(db, actor, id, body); }
+      if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && action === "conversation") result = await openConversation(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, body);
+      else if (request.method === "POST" && chatSide && path.length === 3 && action === "messages") result = await sendMessage(db, actor, chatSide, id, body);
+      else if (request.method === "POST" && chatSide && path.length === 3 && action === "read") result = await markConversationRead(db, actor, chatSide, id, body);
+      else if (request.method === "POST" && chatSide && path.length === 3 && action === "block") result = await setBlock(db, actor, chatSide, id, body);
+      else if (request.method === "POST" && area === "notifications" && path.length === 3 && action === "read") result = await readNotification(db, actor, id, body);
+      else if (request.method === "POST" && path.length === 3 && area === "jobs" && action === "apply") { parse(z.strictObject({}), query); result = await applyToJob(db, actor, id, body); }
       else if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && (applicationActions as readonly string[]).includes(action)
         && (area === "worker-applications" ? action === "withdraw" : action !== "withdraw")) result = await actOnApplication(db, actor, id, action as typeof applicationActions[number], body);
       else if (request.method === "POST" && path.length === 3 && area === "employer-applications" && action === "offers") result = await createOffer(db, actor, id, body);

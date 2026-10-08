@@ -6,7 +6,9 @@ import { AppError } from "@/shared/errors/app-error";
 // Public identity guard for module transactions. Lock order: User, then Company.
 // Role/status updates must serialize on this User row too.
 export async function currentActor(tx: Prisma.TransactionClient, actor: Principal, role: Role, mutation = false, lock = false) {
-  if (lock) await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.id} FOR UPDATE`;
+  // Identity keys are immutable. This still conflicts with status/role writes,
+  // while allowing cross-user history FKs to acquire KEY SHARE without deadlock.
+  if (lock) await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.id} FOR NO KEY UPDATE`;
   const user = await tx.user.findUnique({ where: { id: actor.id }, select: {
     id: true, name: true, emailVerified: true, status: true, roles: { select: { role: true } },
   } });
