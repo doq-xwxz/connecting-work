@@ -4,7 +4,7 @@ Review report, 2026-10-08. PRODUCT and approved Phase 0–4 reports/migrations r
 
 ## 1. Phase 5 Summary
 
-Implemented separate Application/Offer/Engagement entities, Worker/Employer workflows, immutable structured terms, transactional acceptance/capacity, ordinary work lifecycle, current ownership/privacy and dependent Job finalization. Runtime persistence and locking use PostgreSQL only. Local verification is recorded below; publication/remote CI evidence is finalized after the reviewed commit is pushed.
+Implemented separate Application/Offer/Engagement entities, Worker/Employer workflows, immutable structured terms, transactional acceptance/capacity, ordinary work lifecycle, current ownership/privacy and dependent Job finalization. Runtime persistence and locking use PostgreSQL only. Local verification and exact implementation-commit remote CI both passed; published to main and ready for Phase 5 review.
 
 ## 2. D2 decisions resolved
 
@@ -89,7 +89,7 @@ Local Node 24.20.0, pnpm 11.25.0 and disposable PostgreSQL 18.6. Evidence is fro
 | Phase 5 PostgreSQL integration | PASS — pnpm test:hiring, actual constraints/eligibility/revisions/acceptance/work/cleanup/IDOR/snapshots |
 | HTTP tests | PASS — actual Next Phase 2–5, multi-user authenticated hiring/UI pages; only mail transport intercepted |
 | concurrency tests | PASS — last slot, expiry while waiting, fresh suspension and membership removal; earlier phase races retained |
-| GitHub Actions | BLOCKED pending publication/remote execution; replace only with observed exact-commit evidence |
+| GitHub Actions | PASS — implementation commit 9746dd9bc236b2cd6e3a4a1648003931f9fcc79c, run 37722305514; checks and postgres-auth both completed SUCCESS, including every Phase 2–5 integration/HTTP step |
 
 PASS — final migration SQL, DTO privacy/lock-order, React client/server boundaries, dependency/historical-file preservation, ignored secret paths, secret-pattern scan and staged diff review. Local PostgreSQL suites emit the existing pg 8.23.1 deprecated concurrent-client-query warning also seen in earlier phases; assertions pass. No pg upgrade is introduced. Provider TLS/pooling/proxy behavior and browser-interaction E2E are not claimed tested by these local/HTTP checks.
 
@@ -110,8 +110,10 @@ The module is named `hiring` to own Application/Offer/Engagement orchestration t
 
 ## 20. Remaining blockers
 
-No known local implementation blocker after passing checks. Remote publication/CI remains pending until recorded in section 21. Deployment/provider operations and Phase 6 are outside authorization, not silently treated as completed. The pg deprecation warning is recorded above for later driver compatibility work.
+No known implementation/publication blocker after local and remote checks. Temporary PostgreSQL binaries/cluster/credentials and offline schema copy were stopped and removed from verified ignored workspace directories. Deployment/provider operations and Phase 6 are outside authorization, not silently treated as completed. The pg deprecation warning is recorded above for later driver compatibility work.
 
 ## 21. Git commit / remote CI evidence
 
-Pending reviewed commit/push to current `main`. Standing user publication authorization applies; no force push/history rewrite. Record the exact remote SHA and both `checks`/`postgres-auth` job outcomes after observing them; do not mark Phase 5 delivery complete before that verification.
+Implementation commit: [9746dd9bc236b2cd6e3a4a1648003931f9fcc79c](https://github.com/doq-xwxz/connecting-work/commit/9746dd9bc236b2cd6e3a4a1648003931f9fcc79c), pushed to `main` under standing authorization. `git ls-remote origin refs/heads/main` matched that exact SHA immediately after push. No force push or history rewrite; staged changes reviewed and secrets/generated files excluded; PRODUCT, Phase 0–4 reports/migrations and lockfile unchanged.
+
+[GitHub Actions run 37722305514](https://github.com/doq-xwxz/connecting-work/actions/runs/37722305514) completed SUCCESS on that exact head SHA. Both `checks` and `postgres-auth` completed SUCCESS; frozen install/schema/lint/typecheck/unit/build and fresh PostgreSQL migrations/status/smoke/Phase 2–5/HTTP all observed SUCCESS. This evidence update changes documentation only; final main SHA and its own CI are verified again before delivery. Stop for Phase 5 review; do not proceed to Phase 6 or deploy.
