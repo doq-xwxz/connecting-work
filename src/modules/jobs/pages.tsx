@@ -10,7 +10,8 @@ import { getEmployer, listSkills } from "@/modules/profiles/service";
 import { MarketplaceNavigation } from "@/modules/profiles/pages";
 import { getDb } from "@/shared/db/client";
 import { AppError } from "@/shared/errors/app-error";
-import { categories, type JobInput, type PublicJob } from "./contracts";
+import { categories, compensationTypes, type JobInput, type PublicJob } from "./contracts";
+import { publicSearchSkills } from "./search";
 import { getManagedJob, getPublicJob, listManagedJobs, listPublicJobs } from "./service";
 import { JobForm } from "./components/job-form";
 import { JobActions } from "./components/job-actions";
@@ -66,6 +67,7 @@ export function JobManagementPage({ id, edit = false }: { id: string; edit?: boo
       <p className="text-sm">Đăng/tiếp tục còn yêu cầu email đã xác thực, tài khoản được phép hoạt động và hạn mức.</p>
       <JobActions job={job} active={actor.status === "ACTIVE"} />
       <Link className="mb-5 block underline" href={`/employer/jobs/${job.id}/applications`}>Quản lý ứng viên</Link>
+      <Link className="mb-5 block underline" href={`/employer/jobs/${job.id}/candidates`}>Gợi ý người phù hợp</Link>
       {!edit && <Link className="mb-5 block underline" href={`/employer/jobs/${job.id}/edit`}>Mở trang chỉnh sửa</Link>}
       <JobForm job={job} skills={skills} active={actor.status === "ACTIVE"} /></>;
   });
@@ -77,14 +79,20 @@ function PublicJobCard({ job }: { job: PublicJob }) {
 }
 export async function PublicJobsPage({ query }: { query: Query }) {
   let content: ReactNode;
+  let skills: { id: string; name: string }[] = [];
   try {
-    const page = await listPublicJobs(getDb(), query);
+    const [page, availableSkills] = await Promise.all([listPublicJobs(getDb(), query), publicSearchSkills(getDb())]);
+    skills = availableSkills;
     content = <><ul className="space-y-4">{page.items.map((job) => <li key={job.id}><PublicJobCard job={job} /></li>)}</ul>
       {!page.items.length && <p>Chưa có tin đang đăng phù hợp trong trang này.</p>}
       {page.nextCursor && <Link className="mt-6 block underline" href={nextUrl("/jobs", query, page.nextCursor)}>Trang tiếp</Link>}</>;
   } catch { content = <p>Không thể tải danh sách. Kiểm tra bộ lọc hoặc thử lại sau.</p>; }
   return <main className="mx-auto max-w-3xl space-y-6 px-6 py-12"><nav className="flex gap-5 underline"><Link href="/">Trang chủ</Link><Link href="/employer/jobs">Quản lý tin</Link></nav><h1 className="text-3xl font-semibold">Tin tuyển dụng đang đăng</h1>
-    <form className="grid gap-3 sm:grid-cols-2" action="/jobs"><label>Tỉnh/thành phố<input className="mt-1 w-full rounded-md border p-2" name="city" maxLength={80} defaultValue={typeof query.city === "string" ? query.city : ""} /></label>
+    <form className="grid gap-3 sm:grid-cols-2" action="/jobs"><label>Từ khóa<input className="mt-1 w-full rounded-md border p-2" name="q" maxLength={200} defaultValue={typeof query.q === "string" ? query.q : ""} /></label><label>Tỉnh/thành phố<input className="mt-1 w-full rounded-md border p-2" name="city" maxLength={80} defaultValue={typeof query.city === "string" ? query.city : ""} /></label>
+      <label>Kỹ năng<select className="mt-1 w-full rounded-md border p-2" name="skillId" defaultValue={typeof query.skillId === "string" ? query.skillId : ""}><option value="">Tất cả</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}</select></label>
+      <label>Đơn vị thu nhập<select className="mt-1 w-full rounded-md border p-2" name="compensationType" defaultValue={typeof query.compensationType === "string" ? query.compensationType : ""}><option value="">Tất cả</option>{compensationTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
+      <label>Thu nhập từ (VND)<input className="mt-1 w-full rounded-md border p-2" name="compensationMin" inputMode="numeric" maxLength={13} defaultValue={typeof query.compensationMin === "string" ? query.compensationMin : ""} /></label>
+      <label>Thu nhập đến (VND)<input className="mt-1 w-full rounded-md border p-2" name="compensationMax" inputMode="numeric" maxLength={13} defaultValue={typeof query.compensationMax === "string" ? query.compensationMax : ""} /></label>
       <label>Loại công việc<select className="mt-1 w-full rounded-md border p-2" name="employmentType" defaultValue={typeof query.employmentType === "string" ? query.employmentType : ""}><option value="">Tất cả</option>{preferences.map((type) => <option key={type}>{type}</option>)}</select></label>
       <label>Hình thức<select className="mt-1 w-full rounded-md border p-2" name="workMode" defaultValue={typeof query.workMode === "string" ? query.workMode : ""}><option value="">Tất cả</option>{workModes.map((mode) => <option key={mode}>{mode}</option>)}</select></label>
       <label>Nhóm nghề<select className="mt-1 w-full rounded-md border p-2" name="category" defaultValue={typeof query.category === "string" ? query.category : ""}><option value="">Tất cả</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>

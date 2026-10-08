@@ -31,9 +31,15 @@ export const updateJobSchema = z.strictObject({ ...termShape, expectedVersion: z
 export const transitionSchema = z.strictObject({ expectedVersion: z.number().int().min(1).max(2_147_483_647) });
 export const duplicateSchema = z.strictObject({ creationKey: opaqueId });
 const emptyOptional = <T>(schema: z.ZodType<T>) => z.preprocess((value) => value === "" ? undefined : value, schema.optional());
-export const publicQuerySchema = pageSchema.extend({ cursor: opaqueId.optional(), city: citySchema.optional(),
+export const publicQuerySchema = pageSchema.extend({ cursor: z.string().regex(/^[A-Za-z0-9_-]{1,600}$/).optional(), city: citySchema.optional(),
+  q: z.string().max(200).trim().transform((value) => value.normalize("NFC").toLocaleLowerCase("vi").replace(/\s+/g, " "))
+    .refine((value) => !value || (/^[\p{L}\p{M}\p{N}\s'-]+$/u.test(value) && value.split(" ").length <= 20)).optional(),
+  compensationType: emptyOptional(z.enum(compensationTypes)), compensationMin: emptyOptional(moneySchema), compensationMax: emptyOptional(moneySchema),
   employmentType: emptyOptional(z.enum(preferences)), workMode: emptyOptional(z.enum(workModes)),
-  category: emptyOptional(z.enum(categories)), skillId: emptyOptional(opaqueId) });
+  category: emptyOptional(z.enum(categories)), skillId: emptyOptional(opaqueId) }).refine((query) =>
+    ((!query.compensationMin && !query.compensationMax) || Boolean(query.compensationType))
+    && (!query.compensationMin || !query.compensationMax || (moneySchema.safeParse(query.compensationMin).success
+      && moneySchema.safeParse(query.compensationMax).success && BigInt(query.compensationMin) <= BigInt(query.compensationMax))));
 export const managementQuerySchema = pageSchema.extend({ cursor: opaqueId.optional(), status: emptyOptional(z.enum(statuses)), companyId: emptyOptional(opaqueId),
   personal: z.enum(["true"]).optional() }).refine((query) => !(query.personal && query.companyId));
 

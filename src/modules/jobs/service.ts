@@ -6,11 +6,12 @@ import { requireEmployerProfile } from "@/modules/profiles/access";
 import { requireCompanyMembership } from "@/modules/companies/service";
 import { opaqueId, parse } from "@/modules/profiles/contracts";
 import { AppError } from "@/shared/errors/app-error";
-import { createJobSchema, duplicateSchema, FREE_ACTIVE_LIMIT, managementQuerySchema, publicQuerySchema, transitionSchema, updateJobSchema,
+import { createJobSchema, duplicateSchema, FREE_ACTIVE_LIMIT, managementQuerySchema, transitionSchema, updateJobSchema,
   type JobAction, type JobInput, type Quota } from "./contracts";
 import { classifyJobEdit, duplicateTerms, isActive, nextStatus, ownsJob, permitsRestrictedActor, requireEditableTerms, requirePublishable, requireQuota } from "./policy";
 import { inputFromRow, jobSelect, managedJobDto, publicJobDto } from "./projection";
 import { hiringEditContext, finishRecruitment } from "@/modules/hiring/job-query";
+import { searchPublicJobs } from "./search";
 
 async function lockOwner(tx: Prisma.TransactionClient, actor: Principal, profileId: string, companyId: string | null) {
   if (companyId) {
@@ -142,13 +143,7 @@ export async function listManagedJobs(db: PrismaClient, actor: Principal, raw: u
   });
 }
 export async function listPublicJobs(db: PrismaClient, raw: unknown) {
-  const query = parse(publicQuerySchema, raw);
-  const rows = await db.job.findMany({ where: { status: "PUBLISHED", ...(query.cursor ? { id: { gt: query.cursor } } : {}),
-    ...(query.city ? { city: query.city } : {}), ...(query.employmentType ? { employmentType: query.employmentType } : {}),
-    ...(query.workMode ? { workMode: query.workMode } : {}), ...(query.category ? { category: query.category } : {}),
-    ...(query.skillId ? { skills: { some: { skillId: query.skillId } } } : {}) }, select: jobSelect, orderBy: { id: "asc" }, take: query.limit + 1 });
-  const page = rows.slice(0, query.limit);
-  return { items: page.map(publicJobDto), nextCursor: rows.length > query.limit ? page.at(-1)!.id : null };
+  return searchPublicJobs(db, raw);
 }
 export async function getPublicJob(db: PrismaClient, id: string) {
   parse(opaqueId, id);

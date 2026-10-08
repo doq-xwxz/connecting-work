@@ -375,6 +375,12 @@ model Application {
   rejectedAt      DateTime?
   withdrawnAt     DateTime?
   cancelledAt     DateTime?
+  matchEligibleAtApply Boolean?
+  matchScoreAtApply Int?
+  matchCoverageAtApply Int?
+  matchWeightsVersion String?
+  matchAlgorithmVersion String?
+  matchedAt DateTime?
   job             Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
   worker          WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
   offers          Offer[]

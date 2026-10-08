@@ -1,6 +1,6 @@
 # Architecture
 
-Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–4 are approved. Phase 5 adds hiring; stop for Phase 5 review. Phase 6 and deployment are not authorized.
+Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–5 are approved. Phase 6 adds search/matching; stop for Phase 6 review. Phase 7 and deployment are not authorized.
 
 ## Approved direction
 
@@ -54,6 +54,16 @@ Phase 5 resolves only required D2: PAUSED preserves existing hiring; CLOSED forb
 
 Dynamic Node pages and the existing exact-origin, authenticated API expose explicit actions only. Snapshot DTOs remove internal owner IDs and actor provenance. Worker hiring projection reuses safe discovery fields plus completeness, independent of public discovery opt-in because the Worker applied to this Job. Contact/auth data, private schedule and moderation metadata remain excluded. Production needs only injected env, managed PostgreSQL and existing email provider; no production filesystem, local process, cron, deployment or Phase 6 capability.
 
+## Phase 6 search and matching
+
+Jobs exposes a public PostgreSQL FTS query through its existing service, sharing the explicit public Job projection. SQL owns a generated, NFC/Unicode-lowercased weighted title/description vector and PUBLISHED-only GIN index. Query text goes through strict validation and bound plainto_tsquery; relational filters compose before ranking. An integer micro-rank, publication timestamp and ID form filter-bound keyset cursors. The derived column is deliberately absent from ORM inputs; migration SQL is authoritative for it. PostgreSQL 18 UTF8 is the verified minimum because pg_unicode_fast makes Unicode case mapping independent of database locale. No external search dependency exists.
+
+Matching separates a pure versioned scorer/config from private server-only recommendation services. The scorer receives validated Worker/Job DTOs plus an explicit evaluation instant; it never reads DB or auth. Hiring imports only that pure scorer for minimal immutable match-at-apply metadata inside its existing eligibility/capacity transaction. Recommendations use public Jobs/profiles projections and the existing current-owner service, with no cross-module repository imports or Jobs→matching-service cycle. Required skills are SQL-prefiltered, then completeness/skill eligibility rechecked by the pure scorer. Account/ownership/opt-in scope is service-owned, independent of score.
+
+Only skills, recurring overlap and coarse location are measurable. Four future components are null/uncovered, not inferred from bio, salary, or absent reputation. Exact positive rational arithmetic determines final rounded score; explanations/coverage/version/time accompany it. Same-zone recurring hours compare locally. Different zones use Job-start reference week, otherwise the evaluation week; an hourly offset scan detects DST and leaves differing-zone transition weeks uncovered. A request-local bounded offset cache contains only timezone/week offsets and never authorization/profile data.
+
+Recommendations hydrate at most 200 ID-ordered SQL-prefiltered candidates in batch, rank eligible rows by final score/coverage/ID and page at most 30. Ranking is within that bounded pool, not global; fresh changes may reorder pages. Private reads recheck current status/roles/opt-in; Employer candidate reads lock User→owner→Job and recheck Company membership. No public scoring API, private schedule DTO, materialized pair table, matching cache, metric dashboard or Phase 7 implementation exists. PHASE_6 records the resolved D1 subset and exact formulas.
+
 ## Future boundaries — design proposal
 
 Worker/employer/admin route groups introduced only in owning phases. Server Actions/Route Handlers validate/authenticate and call services. Services recheck ownership/current company membership/state in scoped queries/transactions; repositories never authorize browser-supplied IDs alone. Return DTO allowlists, not raw Prisma entities. Client components are only interactive leaves. Cross-module calls use public contracts/services; applications owns hiring orchestration.
@@ -64,6 +74,6 @@ Suspension/block is action+resource policy: deny new activity while preserving r
 
 ## Decisions and references
 
-Zod is selected for ingress validation by Phase 1 instruction; Vitest for Node unit tests; pnpm exclusively. Exact installed versions and evidence are recorded in PHASE_1.md and lockfile. D8 package/runtime choice resolved for Foundation; provider/ops budget decisions remain deferred. Phase 3 resolves its D1/D3 subset; Phase 4 pre-hiring D2 preparation/coarse Job ads; Phase 5 only the required hiring lifecycle D2 subset above. D1 scoring, remaining D3 matching/contact policies, D4 phone policy, D5 moderation, D6 invitation/history, D7 legal retention and D9 metrics remain deferred.
+Zod is selected for ingress validation by Phase 1 instruction; Vitest for Node unit tests; pnpm exclusively. Exact installed versions and evidence are recorded in PHASE_1.md and lockfile. D8 package/runtime choice resolved for Foundation; provider/ops budget decisions remain deferred. Phase 3 resolves its D1/D3 subset; Phase 4 pre-hiring D2 preparation/coarse Job ads; Phase 5 required hiring lifecycle D2; Phase 6 measured-component D1 scoring/coverage/rounding/recurrence and bounded private recommendation policy. Future pay/experience/reputation mappings, remaining D3 contact policies, D4 phone, D5 moderation, D6 invitation/history, D7 retention and D9 analytics remain deferred.
 
 References used for setup: [Next installation](https://nextjs.org/docs/app/getting-started/installation), [Prisma PostgreSQL](https://www.prisma.io/docs/orm/overview/databases/postgresql), [Prisma connections](https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/databases-connections), [shadcn manual setup](https://ui.shadcn.com/docs/installation/manual). New decisions must record status/context/options/consequences, and product changes require explicit review.

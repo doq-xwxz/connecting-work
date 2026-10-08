@@ -17,6 +17,7 @@ export function MarketplaceNavigation() {
   return <nav aria-label="Khu vực hồ sơ" className="mb-8 flex flex-wrap gap-x-5 gap-y-3 text-sm underline">
     <Link href="/account">Tài khoản / vai trò</Link><Link href="/worker/profile">Hồ sơ tìm việc</Link>
     <Link href="/worker/applications">Ứng tuyển của bạn</Link>
+    <Link href="/worker/jobs/recommended">Việc phù hợp</Link>
     <Link href="/employer/profile">Hồ sơ người thuê</Link><Link href="/employer/companies">Công ty</Link><Link href="/employer/workers">Tìm người</Link><Link href="/employer/jobs">Quản lý tin</Link><Link href="/jobs">Tìm việc</Link>
   </nav>;
 }

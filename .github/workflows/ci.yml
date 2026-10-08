@@ -66,4 +66,5 @@ jobs:
       - run: pnpm test:profiles
       - run: pnpm test:jobs
       - run: pnpm test:hiring
+      - run: pnpm test:matching
       - run: pnpm test:http

@@ -12,6 +12,7 @@ import { createJob, duplicateJob, editJob, getManagedJob, getPublicJob, listMana
 import { actions } from "@/modules/jobs/contracts";
 import { actOnApplication, actOnEngagement, actOnOffer, applyToJob, createOffer, getApplication, listApplications, listOffers } from "@/modules/hiring/service";
 import { applicationActions, engagementActions, offerActions } from "@/modules/hiring/contracts";
+import { recommendedJobs, recommendedCandidates } from "@/modules/matching/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     let result: unknown;
     if (["worker-applications", "employer-applications", "offers", "worker-engagements", "employer-engagements"].includes(area) && (request.method !== "GET" || path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET") {
-      if (area === "worker-applications" && path.length === 1) result = await listApplications(db, actor, "WORKER", query);
+      if (area === "worker-recommendations" && path.length === 1) result = await recommendedJobs(db, actor, query);
+      else if (area === "employer-jobs" && path.length === 3 && action === "candidates") result = await recommendedCandidates(db, actor, id, query);
+      else if (area === "worker-applications" && path.length === 1) result = await listApplications(db, actor, "WORKER", query);
       else if (["worker-applications", "employer-applications"].includes(area) && path.length === 3 && action === "offers") result = await listOffers(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, query);
       else if (["worker-applications", "employer-applications"].includes(area) && path.length === 2) result = await getApplication(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id);
       else if (area === "employer-jobs" && path.length === 3 && action === "applications") result = await listApplications(db, actor, "EMPLOYER", query, id);

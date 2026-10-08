@@ -62,6 +62,16 @@ Structured snapshots carry exact VND strings, dates/timezone/schedule, terms ver
 
 The existing 16 KiB JSON limit, strict Zod fields, exact origin, no-store/no-referrer and safe shared errors remain. HTTP tests retain real sessions/status/role checks and intercept only mail transport in the test child. No contact release, admin force action, moderation case system, messaging/outbox, uploads, deployment or production local persistence exists. See PHASE_5 for verified outcomes.
 
+## Phase 6 search/matching controls
+
+Search is PUBLISHED-only inside parameterized SQL. Strict query keys, Unicode NFC normalization, 200 characters/20 tokens, no tsquery operator syntax, max 30 page and bounded typed filter-bound cursors reject excessive/invalid inputs. Compensation comparisons require explicit pay unit and exact BigInt bounds. The query never interpolates user SQL or logs query text. Rehydration uses the existing public field allowlist and current visibility. No private Worker, auth, contact or message text is indexed.
+
+Private recommendations require fresh ACTIVE role/profile. Worker identity comes from the real session; own/current Company and already-applied Jobs are excluded in SQL. Employer target Job management is derived from current personal ownership or Company membership under the established locks, never creator provenance. Targets must currently opt in, be ACTIVE and have WORKER; an existing Application does not override discovery opt-out. ADMIN alone has no bypass. Current scope is reapplied before cursor processing; cursors never grant access. No Worker-ID score API exists.
+
+Candidate DTOs allow only discovery fields, profile completeness and safe component percentages/reason codes; no identity userId, email, phone, bio, raw weekly windows/timezone, moderation or auth fields. Overlap percentage is deliberately disclosed as a coarse matching explanation, never the underlying schedule. Seven weights are fixed/versioned; unknown pay/experience/reputation remains uncovered. Scores are advisory compatibility, not capacity, verified-email authorization or hiring probability. Apply/accept retain all Phase 5 rechecks.
+
+Minimal new-Application match metadata is calculated server-side inside the existing apply transaction and frozen by SQL; no client score fields are accepted, no historical backfill occurs. It is exposed only through existing self/current-management hiring DTOs. Queries have no shared result/authorization cache and hydrate at most 200 candidates, returning at most 30. Existing origin/no-store/no-referrer/error/logging controls remain. Performance/rate budgets before public launch, D5/D7 and deployment are not claimed resolved.
+
 ## Approved policies for future modules
 
 Server deny-by-default policy checks auth+role+current owner/company membership+resource state+field projection. IDOR protection in private reads/counts/exports and mutations; no frontend-only auth. Company creator departure cannot retain private access. Worker discovery only authenticated Employers with opted-in profiles; never contacts/home address/raw schedule/private metadata. Compensation display follows preference, matching uses only permitted data. No CV/identity/business documents V1.

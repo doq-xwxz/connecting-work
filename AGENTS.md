@@ -4,7 +4,7 @@ Before business-logic changes, read in order: [PRODUCT.md](PRODUCT.md), [PHASE_0
 
 ## Current authorization
 
-Phases 0–4 are approved. Phase 5 Applications, immutable Offers, atomic acceptance/capacity, Engagement lifecycle and Job/hiring interaction are authorized. Read PHASE_1.md–PHASE_4.md as historical evidence and PHASE_5.md for current implementation. Stop after Phase 5 review; no matching, messaging, uploads, moderation, Phase 6 or deployment. PRODUCT and approved historical reports/migrations remain intact.
+Phases 0–5 are approved. Phase 6 PostgreSQL Job search, deterministic matching, bounded recommendations and immutable minimal match-at-apply metadata are authorized. Read PHASE_1.md–PHASE_5.md as historical evidence and PHASE_6.md for current implementation. Stop after Phase 6 review; no messaging, uploads, moderation, Phase 7 or deployment. PRODUCT and approved historical reports/migrations remain intact.
 
 Standing user instruction (2026-10-07): after completing authorized changes and appropriate validation, automatically commit and push those changes to https://github.com/doq-xwxz/connecting-work on the current branch (currently main), without asking the user to repeat publication authorization. Verify the remote commit and relevant GitHub Actions results. Review the staged diff first; exclude credentials, local env, generated artifacts and unrelated changes. Do not force-push or rewrite history. Report any authentication, permission, remote conflict or CI blocker honestly. This instruction authorizes GitHub publication, not additional product scope or deployment.
 

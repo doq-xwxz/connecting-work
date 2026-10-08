@@ -316,6 +316,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await hiringPost(`employer-engagements/${acceptedA.engagement.id}/confirm-completion`, {}, cookie);
     await hiringPost(`worker-engagements/${acceptedB.engagement.id}/cancel`, { category: "SCHEDULE", reason: "Cannot continue" }, wb.cookie);
     companyJob = await moveHttpJob(companyJob, "complete"); assert.equal(companyJob.status, "COMPLETED");
+    assert.deepEqual((await (await request(`${api}/worker-applications/${appA.id}`, undefined, wa.cookie)).json()).matchAtApply, appA.matchAtApply);
     stage = "Phase 5 HTTP cancellation cleanup, rejection and pages";
     let cleanupJob = await moveHttpJob(await createHttpJob(company.id), "publish");
     const cleanupApp = await hiringPost(`jobs/${cleanupJob.id}/apply`, { creationKey: randomUUID() }, wc.cookie);
@@ -333,6 +334,38 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     }
     assert.equal((await request(`/worker/applications/${appA.id}`, undefined, wb.cookie)).status, 404);
     assert.equal((await request(`${api}/worker-applications/${appA.id}/offers?limit=1`, undefined, wa.cookie)).status, 200);
+    stage = "Phase 6 HTTP search, recommendations, privacy and immutable match snapshot";
+    const matchJob = await moveHttpJob(await createHttpJob(company.id), "publish");
+    const search = await request(`${api}/jobs?q=${encodeURIComponent(jobData.title)}`); assert.equal(search.status, 200);
+    assert.ok((await search.json()).items.some((item: { id: string }) => item.id === matchJob.id));
+    assert.equal((await request(`${api}/jobs?q=a:*`)).status, 400);
+    assert.equal((await request(`${api}/jobs?q=x&q=y`)).status, 400);
+    assert.equal((await request(`${api}/worker-recommendations`)).status, 401);
+    assert.equal((await request(`${jobsPath}/${matchJob.id}/candidates`)).status, 401);
+    assert.equal((await request(`${jobsPath}/${matchJob.id}/candidates`, undefined, wa.cookie)).status, 403);
+    assert.equal((await request(`${api}/worker-recommendations?workerId=${userId}`, undefined, wa.cookie)).status, 400);
+    assert.equal((await request(`${api}/worker-recommendations?score=100`, undefined, wa.cookie)).status, 400);
+    const recommended = await (await request(`${api}/worker-recommendations`, undefined, wa.cookie)).json();
+    const matchingJob = recommended.items.find((item: { id: string }) => item.id === matchJob.id);
+    assert.ok(matchingJob); assert.equal(matchingJob.match.weightsVersion, "v1"); assert.equal(matchingJob.match.components.length, 7);
+    const candidateProfile = await db.workerProfile.findUniqueOrThrow({ where: { userId: wa.id } });
+    assert.equal((await (await request(`${jobsPath}/${matchJob.id}/candidates`, undefined, cookie)).json()).items.length, 0);
+    assert.equal((await request(`${api}/worker/${candidateProfile.id}/discoverability`, { discoverable: true }, wa.cookie, "PATCH")).status, 200);
+    const privateCandidates = await (await request(`${jobsPath}/${matchJob.id}/candidates`, undefined, cookie)).json();
+    assert.equal(privateCandidates.items.length, 1); assert.equal(privateCandidates.items[0].id, candidateProfile.id);
+    const candidateJson = JSON.stringify(privateCandidates);
+    for (const forbidden of [wa.email, wa.id, "userId", "startHour", "endHour", "timezone", "emailVerified"]) assert.equal(candidateJson.includes(forbidden), false);
+    for (const [path, actorCookie] of [["/worker/jobs/recommended", wa.cookie], [`/employer/jobs/${matchJob.id}/candidates`, cookie]]) {
+      const page = await request(path, undefined, actorCookie); assert.equal(page.status, 200); assert.match(await page.text(), /Mức độ phù hợp/);
+    }
+    await hiringPost(`jobs/${matchJob.id}/apply`, { creationKey: randomUUID(), matchScoreAtApply: 100 }, wa.cookie, 400);
+    const matchApp = await hiringPost(`jobs/${matchJob.id}/apply`, { creationKey: randomUUID() }, wa.cookie);
+    assert.ok(matchApp.matchAtApply); assert.equal(matchApp.matchAtApply.weightsVersion, "v1");
+    assert.equal((await (await request(`${api}/worker-recommendations`, undefined, wa.cookie)).json()).items.some((item: { id: string }) => item.id === matchJob.id), false);
+    assert.equal((await request(`${api}/worker/${candidateProfile.id}/discoverability`, { discoverable: false }, wa.cookie, "PATCH")).status, 200);
+    assert.equal((await (await request(`${jobsPath}/${matchJob.id}/candidates`, undefined, cookie)).json()).items.length, 0);
+    assert.ok((await (await request(`${api}/employer-applications/${matchApp.id}`, undefined, cookie)).json()).worker);
+    assert.equal((await request(`${api}/matching/${wa.id}/${matchJob.id}`, undefined, cookie)).status, 404);
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
     assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
@@ -361,7 +394,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2–4 regressions and Phase 5 multi-user apply/pipeline/immutable revisions/closed acceptance/engagement completion/cancellation/material guards/cleanup/privacy/IDOR/pages; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2–5 regressions and Phase 6 FTS/search/score/coverage/recommendations/opt-in/privacy/IDOR/pages/apply snapshot; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;

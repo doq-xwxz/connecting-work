@@ -6,6 +6,7 @@ export const engagementSelect = { id: true, status: true, terms: true, acceptedA
   completedAt: true, cancelledAt: true, cancellationCategory: true, cancellationReason: true } satisfies Prisma.EngagementSelect;
 export const applicationSelect = { id: true, status: true, appliedAt: true, updatedAt: true, viewedAt: true, shortlistedAt: true,
   offeredAt: true, acceptedAt: true, rejectedAt: true, withdrawnAt: true, cancelledAt: true,
+  matchEligibleAtApply: true, matchScoreAtApply: true, matchCoverageAtApply: true, matchWeightsVersion: true, matchAlgorithmVersion: true, matchedAt: true,
   job: { select: { id: true, title: true, status: true } },
   offers: { select: offerSelect, orderBy: { revision: "desc" }, take: 1 }, engagement: { select: engagementSelect },
 } satisfies Prisma.ApplicationSelect;
@@ -23,6 +24,8 @@ export function engagementDto(row: Prisma.EngagementGetPayload<{ select: typeof 
 }
 export function applicationDto(row: Prisma.ApplicationGetPayload<{ select: typeof applicationSelect }>) {
   return { id: row.id, status: row.status, job: { id: row.job.id, title: row.job.title, status: row.job.status },
+    matchAtApply: row.matchedAt ? { eligible: row.matchEligibleAtApply, score: row.matchScoreAtApply, coverage: row.matchCoverageAtApply,
+      weightsVersion: row.matchWeightsVersion, algorithmVersion: row.matchAlgorithmVersion, matchedAt: row.matchedAt.toISOString() } : null,
     appliedAt: row.appliedAt.toISOString(), updatedAt: row.updatedAt.toISOString(), viewedAt: iso(row.viewedAt), shortlistedAt: iso(row.shortlistedAt),
     offeredAt: iso(row.offeredAt), acceptedAt: iso(row.acceptedAt), rejectedAt: iso(row.rejectedAt), withdrawnAt: iso(row.withdrawnAt), cancelledAt: iso(row.cancelledAt),
     offer: row.offers[0] ? offerDto(row.offers[0]) : null, engagement: row.engagement ? engagementDto(row.engagement) : null };
