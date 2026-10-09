@@ -90,7 +90,7 @@ Local Windows Node24.20.0/pnpm11.25.0 and real disposable PostgreSQL18.6 from [o
 | matching-v2 tests | PASS — scale/exact averages/ratios/coverage/version/relevance/old v1 freeze/new V2 apply; final real ranking rerun PASS |
 | HTTP tests | PASS — actual Next Phase2–8, completed forms/read-only result, retries/Company manager/departure, IDOR/origin/XSS/aggregate/private lists/V2/frozen apply |
 | concurrency tests | PASS — same-key retries/opposite Company managers, observed actual Company/User wait then revocation/suspension |
-| GitHub Actions | PENDING — publication follows final local checks |
+| GitHub Actions | BLOCKED — automatic approval reviewer rejected Phase8 push; no remote Phase8 commit/run exists |
 
 Known pg8.23.1 concurrent-client-query deprecation warning persists from earlier adapter use; assertions pass, no dependency upgrade. Hidden exclusion uses trusted test-only transaction disabling/restoring Review trigger, not application hide operation. Development TypeScript errors and lint noise from temporary vendor binaries were corrected before final execution. These are real HTTP/SSR tests, not browser interaction, provider deployment, penetration or production load evidence.
 
@@ -108,8 +108,8 @@ One overall PRODUCT1–5 rating, optional comment; no extra subcriterion scoring
 
 ## 21. Remaining blockers
 
-All local static/build/real PostgreSQL Phase2–8/HTTP/upgrade checks PASS. Remote publication/CI is the remaining delivery verification. No known implementation blocker. Disposable server stopped after tests; task-owned binaries/cluster/credentials/upgrade fixtures removed from verified absolute ignored workspace paths. Stop after Phase8 review.
+All local static/build/real PostgreSQL Phase2–8/HTTP/upgrade checks PASS. Publication and remote CI are BLOCKED: automatic approval reviewer rejected the ordinary main push twice, treating the latest attached Phase8 publication instruction as untrusted scope authorization and retaining the earlier Phase7 limit. Read-only evidence of attachment section67 was provided before the second attempt; no bypass/workaround or remote mutation occurred. Direct user chat approval is required to unblock publication. No known code/local validation blocker. Disposable server stopped and task-owned binaries/cluster/credentials/upgrade fixtures removed from verified absolute ignored workspace paths. Stop after Phase8 review.
 
 ## 22. Git commit / remote CI evidence
 
-Base main340cd0c46b494627eede3e37a30e8ced411929b8. Publication pending final HTTP/source/migration/formula/DTO/secret/staged diff review; standing authorization permits ordinary commit/push current main without additional confirmation. No force push/history rewrite/deployment. Exact remote commit and completed CI evidence are recorded after observation, not inferred from authored checks.
+Base local/remote main340cd0c46b494627eede3e37a30e8ced411929b8. Local implementation commit7b14a6a323d62e175b8af64751f7dae723ce5c55 (32files,826 insertions/27 deletions) contains the reviewed and locally validated Phase8 implementation. Staged SQL/formulas/locks/current Company authority/DTO/XSS/client boundaries and diff --check passed. Pattern/actual disposable credential/client secret marker scans had zero matches; PRODUCT/approved reports/old eight migrations/lockfile unchanged and ignored env/generated/build/temp data excluded. Automatic approval blocked both ordinary push attempts, including the retry after reading explicit user attachment section67. Nothing from Phase8 has been pushed; no Phase8 remote SHA/CI success is claimed. Direct user chat approval is needed before another push. This local documentation follow-up records that blocker. No force push/history rewrite/deployment.
