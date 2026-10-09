@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { cleanupModerationFixtures } from "./moderation-test-cleanup";
 
 nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "disposable") {
@@ -475,6 +476,101 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.deepEqual((await (await request(`${api}/worker-applications/${matchApp.id}`, undefined, wa.cookie)).json()).matchAtApply, matchApp.matchAtApply);
     const deniedOriginReview = await fetch(`${origin}${api}/${workerReviewPath}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://other.invalid", Cookie: wa.cookie }, body: JSON.stringify(reviewInput) });
     assert.equal(deniedOriginReview.status, 403);
+    stage = "Phase 9 real HTTP reports, cases, fresh ADMIN and audit";
+    const adminApi = "/api/admin", decision = { reasonCode: "OTHER", reason: "HTTP reviewed fixture" };
+    assert.equal((await request(`${adminApi}/cases`)).status, 401);
+    assert.equal((await request(`${adminApi}/cases`, undefined, cookie)).status, 403);
+    // Operational test fixture only: there is deliberately no public ADMIN grant API.
+    await db.userRole.create({ data: { userId: wc.id, role: "ADMIN", grantedBy: "test-fixture" } });
+    async function adminPost(path: string, body: object, expected = 200) {
+      const response = await request(`${adminApi}/${path}`, body, wc.cookie);
+      assert.equal(response.status, expected, `Admin ${path}`); return response.json();
+    }
+    const reportInput = { targetType: "JOB", targetId: matchJob.id, reasonCode: "SPAM", details: "<script>reported plain text</script>" };
+    const report = await hiringPost("reports", reportInput, wa.cookie);
+    const userReport = await hiringPost(`employer-applications/${appA.id}/report-counterparty`, { reasonCode: "HARASSMENT", details: null }, cookie);
+    assert.equal(userReport.targetType, "USER"); assert.equal(userReport.targetId, null);
+    const companyReport = await hiringPost(`worker-applications/${appA.id}/report-counterparty`, { reasonCode: "SCAM", details: null }, wa.cookie);
+    assert.equal(companyReport.targetType, "COMPANY");
+    await hiringPost(`worker-applications/${appA.id}/report-counterparty`, { reasonCode: "SPAM", details: null }, wb.cookie, 404);
+    await hiringPost(`employer-applications/${appA.id}/report-counterparty`, { reasonCode: "SPAM", details: null, targetId: wb.id }, cookie, 400);
+    assert.equal((await request(`/reports/new?applicationId=${appA.id}&side=EMPLOYER`, undefined, cookie)).status, 200);
+    assert.equal((await hiringPost("reports", reportInput, wa.cookie)).id, report.id);
+    for (const field of ["details", "reporterUserId", "resolutionNote", wa.email]) assert.equal(JSON.stringify(report).includes(field), false);
+    await hiringPost("reports", { ...reportInput, reporterUserId: wb.id }, wa.cookie, 400);
+    await hiringPost("reports", { targetType: "MESSAGE", targetId: employerMessage.id, reasonCode: "HARASSMENT", details: null }, wb.cookie, 404);
+    const messageReport = await hiringPost("reports", { targetType: "MESSAGE", targetId: employerMessage.id, reasonCode: "HARASSMENT", details: null }, wa.cookie);
+    const messageCase = await adminPost("cases", { ...decision, targetType: "MESSAGE", targetId: employerMessage.id, severity: "HIGH", reportId: messageReport.id });
+    const singleContext = await adminPost(`cases/${messageCase.id}/context`, decision);
+    assert.equal(singleContext.id, employerMessage.id); assert.equal("messages" in singleContext, false);
+    const jc = await adminPost("cases", { ...decision, targetType: "JOB", targetId: matchJob.id, severity: "HIGH", reportId: report.id });
+    await adminPost(`cases/${jc.id}/investigate`, decision);
+    await adminPost(`cases/${jc.id}/actions/hide-job`, { ...decision, targetId: companyJob.id }, 409);
+    const deniedOriginAdmin = await fetch(`${origin}${adminApi}/cases/${jc.id}/actions/hide-job`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://other.invalid", Cookie: wc.cookie }, body: JSON.stringify({ ...decision, targetId: matchJob.id }) });
+    assert.equal(deniedOriginAdmin.status, 403);
+    await adminPost(`cases/${jc.id}/actions/hide-job`, { ...decision, targetId: matchJob.id, adminUserId: wc.id }, 400);
+    await adminPost(`cases/${jc.id}/actions/hide-job`, { ...decision, targetId: matchJob.id });
+    assert.equal((await request(`${api}/jobs/${matchJob.id}`)).status, 404);
+    await hiringPost(`jobs/${matchJob.id}/apply`, { creationKey: randomUUID() }, wb.cookie, 409);
+    assert.equal((await request(`${jobsPath}/${matchJob.id}/candidates`, undefined, cookie)).status, 409);
+    await adminPost(`cases/${jc.id}/actions/unhide-job`, { ...decision, targetId: matchJob.id });
+    assert.equal((await request(`${api}/jobs/${matchJob.id}`)).status, 200);
+    const rr = await hiringPost("reports", { targetType: "REVIEW", targetId: review.id, reasonCode: "SPAM", details: null }, wa.cookie);
+    const rc = await adminPost("cases", { ...decision, targetType: "REVIEW", targetId: review.id, severity: "MEDIUM", reportId: rr.id });
+    await adminPost(`cases/${rc.id}/actions/hide-review`, { ...decision, targetId: review.id });
+    assert.equal((await (await request(`${api}/jobs/${matchJob.id}`)).json()).reputation.rating.count, 0);
+    await adminPost(`cases/${rc.id}/actions/unhide-review`, { ...decision, targetId: review.id });
+    assert.equal((await (await request(`${api}/jobs/${matchJob.id}`)).json()).reputation.rating.count, 1);
+    for (const path of ["/admin/cases", "/admin/reports", `/admin/cases/${jc.id}`, "/account/reports", `/reports/new?targetType=JOB&targetId=${matchJob.id}`]) {
+      const page = await request(path, undefined, path.startsWith("/admin") ? wc.cookie : wa.cookie);
+      assert.equal(page.status, 200); assert.equal(page.headers.get("referrer-policy"), "no-referrer");
+      assert.equal((await page.text()).includes("<script>reported plain text</script>"), false);
+    }
+    const auditPage = await request(`${adminApi}/cases/${jc.id}/audit?limit=2`, undefined, wc.cookie);
+    assert.equal(auditPage.status, 200); const auditJson = await auditPage.json(); assert.equal(auditJson.items.length, 2); assert(auditJson.nextCursor);
+    assert.equal((await request(`${adminApi}/cases/${jc.id}/audit?limit=51`, undefined, wc.cookie)).status, 400);
+    await adminPost(`cases/${jc.id}/close`, { ...decision, resolutionCode: "RESOLVED" });
+    await adminPost(`cases/${jc.id}/actions/hide-job`, { ...decision, targetId: matchJob.id }, 409);
+    assert.equal((await (await request(`${api}/reports`, undefined, wa.cookie)).json()).items.find((item: { id: string }) => item.id === report.id).status, "RESOLVED");
+    stage = "Phase 9 HTTP forced lifecycle and immutable snapshots";
+    const forceJob = await moveHttpJob(await createHttpJob(company.id), "publish");
+    await db.rateLimit.upsert({ where: { key: `report:user:${wc.id}` }, create: { id: randomUUID(), key: `report:user:${wc.id}`, count: 10, lastRequest: BigInt(Date.now()) }, update: { count: 10, lastRequest: BigInt(Date.now()) } });
+    await hiringPost("reports", { targetType: "JOB", targetId: forceJob.id, reasonCode: "SPAM", details: null }, wc.cookie, 429);
+    async function forceFixture(worker: { cookie: string }) {
+      const application = await hiringPost(`jobs/${forceJob.id}/apply`, { creationKey: randomUUID() }, worker.cookie);
+      await hiringPost(`employer-applications/${application.id}/shortlist`, {}, cookie);
+      const offer = await hiringPost(`employer-applications/${application.id}/offers`, { creationKey: randomUUID(), expiresAt: null }, cookie);
+      const accepted = await hiringPost(`offers/${offer.id}/accept`, {}, worker.cookie);
+      return { application, engagement: accepted.engagement };
+    }
+    const fa = await forceFixture(wa), fb = await forceFixture(wb);
+    const frozenForce = await db.engagement.findUniqueOrThrow({ where: { id: fa.engagement.id } });
+    const fc = await adminPost("cases", { ...decision, targetType: "ENGAGEMENT", targetId: fa.engagement.id, severity: "HIGH" });
+    await adminPost(`cases/${fc.id}/actions/force-complete`, { ...decision, targetId: fa.engagement.id }, 409);
+    await hiringPost(`employer-engagements/${fa.engagement.id}/start`, {}, cookie);
+    const forceChat = await hiringPost(`worker-applications/${fa.application.id}/conversation`, {}, wa.cookie);
+    await adminPost(`cases/${fc.id}/actions/force-complete`, { ...decision, targetId: fa.engagement.id });
+    const completedForce = await db.engagement.findUniqueOrThrow({ where: { id: fa.engagement.id } });
+    assert.equal(completedForce.status, "COMPLETED"); assert.equal(completedForce.completionRequestedAt, null); assert.deepEqual(completedForce.terms, frozenForce.terms);
+    await hiringPost(`worker-conversations/${forceChat.id}/messages`, { body: "Terminal denied", creationKey: randomUUID() }, wa.cookie, 403);
+    const cancelCase = await adminPost("cases", { ...decision, targetType: "ENGAGEMENT", targetId: fb.engagement.id, severity: "HIGH" });
+    await adminPost(`cases/${cancelCase.id}/actions/force-cancel`, { ...decision, targetId: fb.engagement.id });
+    assert.equal((await db.engagement.findUniqueOrThrow({ where: { id: fb.engagement.id } })).cancelledBy, null);
+    await adminPost(`cases/${cancelCase.id}/actions/force-complete`, { ...decision, targetId: fb.engagement.id }, 409);
+    stage = "Phase 9 HTTP account restrictions";
+    const uc = await adminPost("cases", { ...decision, targetType: "USER", targetId: wm.id, severity: "HIGH" });
+    await adminPost(`cases/${uc.id}/actions/suspend`, { ...decision, targetId: wm.id });
+    assert.equal((await request(`${api}/worker-recommendations`, undefined, wm.cookie)).status, 403);
+    await adminPost(`cases/${uc.id}/actions/unsuspend`, { ...decision, targetId: wm.id });
+    await adminPost(`cases/${uc.id}/actions/ban`, { ...decision, targetId: wm.id });
+    assert.equal((await request(`${api}/worker`, undefined, wm.cookie)).status, 403);
+    await adminPost(`cases/${uc.id}/actions/unsuspend`, { ...decision, targetId: wm.id }, 409);
+    await db.userRole.delete({ where: { userId_role: { userId: wc.id, role: "ADMIN" } } });
+    assert.equal((await request(`${adminApi}/cases`, undefined, wc.cookie)).status, 403);
+    await db.userRole.create({ data: { userId: wc.id, role: "ADMIN", grantedBy: "test-fixture" } });
+    await db.user.update({ where: { id: wc.id }, data: { status: "SUSPENDED" } });
+    assert.equal((await request(`${adminApi}/cases`, undefined, wc.cookie)).status, 403);
+    await db.user.update({ where: { id: wc.id }, data: { status: "ACTIVE" } });
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
     assert.equal((await request(jobsPath, jobBody(), cookie)).status, 403);
@@ -503,7 +599,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2–7 regressions and Phase 8 completed bilateral reviews, Company authorization, retry/immutable UI, rating/visibility/DTO/XSS, v2 reputation and frozen apply snapshot; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2–8 regressions and Phase 9 reports/privacy/case binding/fresh ADMIN/audit/hide/unhide/forced lifecycle/status/UI/origin/XSS; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;
@@ -515,6 +611,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     try {
       userId ??= (await db.user.findUnique({ where: { email }, select: { id: true } }))?.id;
       if (userId) {
+        await cleanupModerationFixtures(db, [userId, ...hiringUsers]);
         const jobIds = (await db.job.findMany({ where: { createdByUserId: userId }, select: { id: true } })).map((item) => item.id);
         const chatIds = (await db.conversation.findMany({ where: { jobId: { in: jobIds } }, select: { id: true } })).map((item) => item.id);
         await db.notification.deleteMany({ where: { conversationId: { in: chatIds } } }); await db.conversationReadState.deleteMany({ where: { conversationId: { in: chatIds } } });

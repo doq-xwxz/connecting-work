@@ -22,6 +22,7 @@
     "test:matching": "prisma generate && node --conditions=react-server --import=tsx scripts/matching-integration.ts",
     "test:messaging": "prisma generate && node --conditions=react-server --import=tsx scripts/messaging-integration.ts",
     "test:reviews": "prisma generate && node --conditions=react-server --import=tsx scripts/reviews-integration.ts",
+    "test:moderation": "prisma generate && node --conditions=react-server --import=tsx scripts/moderation-integration.ts && node --conditions=react-server --import=tsx scripts/moderation-upgrade.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

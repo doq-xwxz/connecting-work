@@ -42,6 +42,10 @@ model User {
   notifications     Notification[]
   blocksMade        UserBlock[] @relation("Blocker")
   blocksReceived    UserBlock[] @relation("Blocked")
+  reports Report[]
+  openedCases ModerationCase[]
+  auditEvents AuditEvent[]
+  moderationAuditId String?
 }
 
 model Session {
@@ -329,6 +333,8 @@ model Job {
   publishedAt       DateTime?
   closedAt          DateTime?
   cancelledAt       DateTime?
+  moderationHiddenAt DateTime?
+  moderationAuditId String?
   skills            JobSkill[]
   schedule          JobScheduleWindow[]
   applications      Application[]
@@ -442,6 +448,7 @@ model Engagement {
   cancelledBy           String?
   cancellationCategory  String?
   cancellationReason    String?
+  moderationAuditId     String?
   updatedAt             DateTime @updatedAt
   application           Application @relation(fields: [applicationId, jobId, workerProfileId], references: [id, jobId, workerProfileId], onDelete: Restrict)
   acceptedOffer         Offer @relation(fields: [acceptedOfferId, applicationId, jobId], references: [id, applicationId, jobId], onDelete: Restrict)
@@ -475,6 +482,7 @@ model Review {
   creationKey String
   createdAt DateTime @default(now())
   hiddenAt DateTime?
+  moderationAuditId String?
   engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Restrict)
   reviewer User @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
   worker WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
@@ -600,4 +608,125 @@ model Notification {
 
   @@index([userId, readAt, createdAt, id])
   @@index([conversationId])
+}
+
+enum ModerationTarget {
+  JOB
+  REVIEW
+  USER
+  MESSAGE
+  COMPANY
+  ENGAGEMENT
+}
+
+enum ReportReason {
+  SPAM
+  SCAM
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  MISLEADING_JOB
+  IMPERSONATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum CaseStatus {
+  OPEN
+  INVESTIGATING
+  ACTIONED
+  CLOSED
+}
+
+enum CaseSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditAction {
+  CASE_CREATED
+  CASE_INVESTIGATING
+  CASE_CLOSED
+  REPORT_ATTACHED
+  JOB_HIDDEN
+  JOB_UNHIDDEN
+  REVIEW_HIDDEN
+  REVIEW_UNHIDDEN
+  USER_SUSPENDED
+  USER_UNSUSPENDED
+  USER_BANNED
+  ENGAGEMENT_FORCE_COMPLETED
+  ENGAGEMENT_FORCE_CANCELLED
+  CASE_CONTEXT_READ
+}
+
+model Report {
+  id String @id @default(uuid())
+  reporterUserId String
+  reporter User @relation(fields: [reporterUserId], references: [id], onDelete: Restrict)
+  targetType ModerationTarget
+  targetId String
+  reasonCode ReportReason
+  details String?
+  status ReportStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  resolvedAt DateTime?
+  cases CaseReport[]
+  @@index([reporterUserId, status, id])
+  @@index([targetType, targetId, status])
+  @@index([status, createdAt, id])
+}
+
+model ModerationCase {
+  id String @id @default(uuid())
+  targetType ModerationTarget
+  targetId String
+  status CaseStatus @default(OPEN)
+  severity CaseSeverity
+  openedByAdminUserId String
+  openedBy User @relation(fields: [openedByAdminUserId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt DateTime?
+  resolutionCode String?
+  resolutionNote String?
+  reports CaseReport[]
+  audit AuditEvent[]
+  @@index([status, severity, createdAt, id])
+  @@index([targetType, targetId])
+}
+
+model CaseReport {
+  caseId String
+  reportId String @unique
+  case ModerationCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  report Report @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  @@id([caseId, reportId])
+}
+
+model AuditEvent {
+  id String @id @default(uuid())
+  adminUserId String
+  admin User @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+  action AuditAction
+  resourceType ModerationTarget
+  resourceId String
+  caseId String
+  case ModerationCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  reasonCode ReportReason
+  reason String
+  metadata Json
+  createdAt DateTime @default(now())
+  transactionId String @default(dbgenerated("pg_current_xact_id()::text"))
+  @@index([caseId, createdAt, id])
+  @@index([resourceType, resourceId, createdAt])
+  @@index([adminUserId, createdAt])
 }

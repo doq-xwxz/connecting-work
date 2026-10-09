@@ -15,6 +15,7 @@ import { applicationActions, engagementActions, offerActions } from "@/modules/h
 import { recommendedJobs, recommendedCandidates } from "@/modules/matching/service";
 import { getConversation, listConversations, listMessages, listNotifications, markConversationRead, openConversation, readNotification, sendMessage, setBlock } from "@/modules/messaging/service";
 import { getEngagementReviews, submitReview, ownerReputationForPublicJob, ownerReviewsForJob, workerReviewsForEmployer } from "@/modules/reviews/service";
+import { createReport, listOwnReports, reportCounterparty } from "@/modules/moderation/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     if (request.method !== "GET" && (chatSide || area === "notifications")) parse(z.strictObject({}), query);
     if (["worker-applications", "employer-applications", "offers", "worker-engagements", "employer-engagements"].includes(area) && (request.method !== "GET" || path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET") {
-      if (["worker-engagements", "employer-engagements"].includes(area) && path.length === 3 && action === "reviews") { parse(z.strictObject({}), query); result = await getEngagementReviews(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id); }
+      if (area === "reports" && path.length === 1) result = await listOwnReports(db, actor, query);
+      else if (["worker-engagements", "employer-engagements"].includes(area) && path.length === 3 && action === "reviews") { parse(z.strictObject({}), query); result = await getEngagementReviews(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id); }
       else if (area === "jobs" && path.length === 3 && action === "reviews") result = await ownerReviewsForJob(db, actor, id, query);
       else if (area === "workers" && path.length === 3 && action === "reviews") result = await workerReviewsForEmployer(db, actor, id, query);
       else if (chatSide && path.length === 1) result = await listConversations(db, actor, chatSide, query);
@@ -66,7 +68,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     } else {
       const body = await readJsonBody(request);
       if (area === "employer-jobs") parse(z.strictObject({}), query);
-      if (request.method === "POST" && path.length === 3 && ["worker-engagements", "employer-engagements"].includes(area) && action === "reviews") result = await submitReview(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id, body);
+      if (request.method === "POST" && path.length === 1 && area === "reports") { parse(z.strictObject({}), query); result = await createReport(db, actor, body); }
+      else if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && action === "report-counterparty") result = await reportCounterparty(db, actor, { applicationId: id, side: area === "worker-applications" ? "WORKER" : "EMPLOYER" }, body);
+      else if (request.method === "POST" && path.length === 3 && ["worker-engagements", "employer-engagements"].includes(area) && action === "reviews") result = await submitReview(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id, body);
       else if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && action === "conversation") result = await openConversation(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, body);
       else if (request.method === "POST" && chatSide && path.length === 3 && action === "messages") result = await sendMessage(db, actor, chatSide, id, body);
       else if (request.method === "POST" && chatSide && path.length === 3 && action === "read") result = await markConversationRead(db, actor, chatSide, id, body);

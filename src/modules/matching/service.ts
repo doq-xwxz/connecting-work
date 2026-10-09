@@ -13,6 +13,7 @@ import { AppError } from "@/shared/errors/app-error";
 import { matchingConfig, matchWorkerJob, type MatchResult } from "./algorithm";
 import { getWorkerReputationFacts } from "@/modules/reviews/query";
 import { reputationDto } from "@/modules/reviews/contracts";
+import { requireRecruitingVisible, visibleRecruitingWhere } from "@/modules/jobs/moderation";
 
 export const CANDIDATE_POOL_LIMIT = 200;
 const querySchema = pageSchema.extend({ cursor: z.string().regex(/^[A-Za-z0-9_-]{1,600}$/).optional() });
@@ -37,7 +38,7 @@ export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: u
     await currentActor(tx, actor, "WORKER", true);
     const own = await requireWorkerProfile(tx, actor.id);
     const worker = selfWorkerDto(await tx.workerProfile.findUniqueOrThrow({ where: { id: own.id }, select: workerSelect }));
-    const rows = await tx.job.findMany({ where: { status: "PUBLISHED", applications: { none: { workerProfileId: own.id } },
+    const rows = await tx.job.findMany({ where: { AND: [visibleRecruitingWhere], status: "PUBLISHED", applications: { none: { workerProfileId: own.id } },
       skills: { none: { required: true, NOT: { OR: worker.skills.map((skill) => ({ skillId: skill.skillId, minimumLevel: { in: levels.slice(0, levels.indexOf(skill.level) + 1) } })) } } },
       NOT: [{ companyId: null, employer: { userId: actor.id } }, { company: { members: { some: { userId: actor.id } } } }] },
       select: jobSelect, orderBy: { id: "asc" }, take: CANDIDATE_POOL_LIMIT });
@@ -56,6 +57,7 @@ export async function recommendedCandidates(db: PrismaClient, actor: Principal, 
     // Membership revocation takes this same Company lock. This private read cannot
     // continue on creator provenance after a concurrent removal commits.
     const job = await managedRow(tx, actor, profile.id, jobId, true);
+    await requireRecruitingVisible(tx, jobId);
     if (!["PUBLISHED", "PAUSED"].includes(job.status)) throw new AppError("CONFLICT");
     const rows = await tx.workerProfile.findMany({ where: { discoverable: true,
       AND: job.skills.filter((skill) => skill.required).map((skill) => ({ skills: { some: { skillId: skill.skillId, level: { in: levels.slice(levels.indexOf(skill.minimumLevel)) }, skill: { active: true } } } })),

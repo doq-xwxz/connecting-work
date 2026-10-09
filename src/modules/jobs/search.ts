@@ -6,6 +6,7 @@ import { parse } from "@/modules/profiles/contracts";
 import { AppError } from "@/shared/errors/app-error";
 import { publicQuerySchema } from "./contracts";
 import { jobSelect, publicJobDto } from "./projection";
+import { visibleRecruitingSql, visibleRecruitingWhere } from "./moderation";
 
 const cursorSchema = z.strictObject({ v: z.literal(1), scope: z.string().regex(/^[a-f0-9]{64}$/), rank: z.number().int().min(0), published: z.iso.datetime(), id: z.uuid() });
 export async function publicSearchSkills(db: PrismaClient) {
@@ -21,7 +22,7 @@ export async function searchPublicJobs(db: PrismaClient, raw: unknown) {
     catch { throw new AppError("VALIDATION"); }
     if (after.scope !== scope) throw new AppError("VALIDATION");
   }
-  const conditions: Prisma.Sql[] = [Prisma.sql`j."status" = 'PUBLISHED'`];
+  const conditions: Prisma.Sql[] = [Prisma.sql`j."status" = 'PUBLISHED'`, visibleRecruitingSql];
   if (query.q) conditions.push(Prisma.sql`j."searchVector" @@ plainto_tsquery('pg_catalog.simple'::regconfig, ${query.q})`);
   if (query.city) conditions.push(Prisma.sql`j."city" = ${query.city}`);
   if (query.employmentType) conditions.push(Prisma.sql`j."employmentType" = ${query.employmentType}::"EmploymentType"`);
@@ -39,7 +40,7 @@ export async function searchPublicJobs(db: PrismaClient, raw: unknown) {
     WITH hits AS (SELECT j."id", j."publishedAt", ${rank} AS rank FROM "Job" j WHERE ${Prisma.join(conditions, " AND ")})
     SELECT * FROM hits ${pageCondition} ORDER BY rank DESC, "publishedAt" DESC, id ASC LIMIT ${limit + 1}`);
   const page = hits.slice(0, limit);
-  const rows = await db.job.findMany({ where: { id: { in: page.map((hit) => hit.id) }, status: "PUBLISHED" }, select: jobSelect });
+  const rows = await db.job.findMany({ where: { AND: [{ id: { in: page.map((hit) => hit.id) }, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: jobSelect });
   const byId = new Map(rows.map((row) => [row.id, row]));
   const last = page.at(-1);
   return { items: page.flatMap((hit) => { const row = byId.get(hit.id); return row ? [publicJobDto(row)] : []; }),

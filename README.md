@@ -2,13 +2,15 @@
 
 Tìm đúng việc. Gặp đúng người.
 
-Phase 8 adds completed-work bilateral immutable reviews, safe reputation aggregates and deterministic matching V2. Contextual messaging remains in place. PostgreSQL search/matching, personal/Company ownership, quota, verified roles, immutable Offers and atomic Engagement capacity remain in place. [PRODUCT.md](PRODUCT.md) remains source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture/deferred decisions. Phases 0–7 are approved; stop for Phase 8 review. No Phase 9 or deployment.
+Phase 9 adds private reports, case-bound ADMIN moderation and immutable audit, including hide/unhide, account restrictions and exceptional Engagement completion/cancellation. Completed-work reviews, safe reputation, deterministic matching V2 and contextual messaging remain in place. [PRODUCT.md](PRODUCT.md) remains source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture/deferred decisions. Phases 0–8 are approved; stop after Phase 9. No Phase 10 or deployment.
 
 ## Documentation
 
-[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md) · [Phase 3 historical review](PHASE_3.md) · [Phase 4 historical review](PHASE_4.md) · [Phase 5 historical review](PHASE_5.md) · [Phase 6 historical review](PHASE_6.md) · [Phase 7 historical review](PHASE_7.md) · [Phase 8 review](PHASE_8.md)
+[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md) · [Phase 3 historical review](PHASE_3.md) · [Phase 4 historical review](PHASE_4.md) · [Phase 5 historical review](PHASE_5.md) · [Phase 6 historical review](PHASE_6.md) · [Phase 7 historical review](PHASE_7.md) · [Phase 8 historical review](PHASE_8.md) · [Phase 9 review](PHASE_9.md)
 
 ## Local setup
+
+Phase 9: use `/account/reports` for private receipts and report links on Jobs/Reviews/Messages/Engagements/Application counterparties. Trusted ACTIVE ADMIN uses `/admin/cases` and `/admin/reports`; every action requires a case bound to the exact resource and a reason. Hidden Jobs block new recruitment/acceptance; suspended active obligations remain scoped, banned marketplace access fails closed. Run `pnpm test:moderation` on the documented disposable PostgreSQL for moderation, observed lock races and populated Phase 8→9 upgrade rehearsal. See [PHASE_9](PHASE_9.md) for exact D5 decisions and limits.
 
 Use Node 24 (tested version in `.node-version`) and pnpm 11.25.0 (`packageManager`). Install pnpm through your approved runtime/package-manager setup if missing; no second lockfile/package manager.
 
@@ -39,7 +41,7 @@ pnpm start
 
 Typecheck/build generate the Prisma client first; typecheck also runs Next typegen so a clean checkout does not require prior dev/build output. `pnpm db:smoke` reports BLOCKED (exit 2) without DATABASE_URL; it is a database integration probe, not a fake passing unit test. `pnpm db:migrate --name <change>` creates/applies development migrations; `pnpm db:deploy` only applies committed SQL to an operator-selected database. These commands do not deploy the website. Never reset shared/production data.
 
-CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a fresh PostgreSQL 18 service for committed migrations, DB smoke, `pnpm test:integration`, `pnpm test:profiles`, `pnpm test:jobs`, `pnpm test:hiring`, `pnpm test:matching`, `pnpm test:messaging`, `pnpm test:reviews`, and `pnpm test:http` (actual Next Phase 2–8 routes/pages). All eight integration commands require explicit TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. Scope DATABASE_URL/DIRECT_DATABASE_URL to the same disposable endpoint for migration/smoke commands; never use production. Tests clean only their own fixtures. The HTTP child starts/stops automatically and intercepts only email transport. No browser E2E dependency, deployment or production/provider secret was added. See PHASE_7 for current evidence; earlier reports remain historical.
+CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a fresh PostgreSQL 18 service for committed migrations, DB smoke, `pnpm test:integration`, `pnpm test:profiles`, `pnpm test:jobs`, `pnpm test:hiring`, `pnpm test:matching`, `pnpm test:messaging`, `pnpm test:reviews`, `pnpm test:moderation`, and `pnpm test:http` (actual Next Phase 2–9 routes/pages). All nine integration commands require explicit TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. Scope DATABASE_URL/DIRECT_DATABASE_URL to the same disposable endpoint for migration/smoke commands; never use production. Tests clean only their own fixtures. The HTTP child starts/stops automatically and intercepts only email transport. No browser E2E dependency, deployment or production/provider secret was added. See PHASE_9 for current evidence; earlier reports remain historical.
 
 ## Jobs (Phase 4)
 

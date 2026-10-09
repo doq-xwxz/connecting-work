@@ -19,6 +19,7 @@ import { preferences, workModes } from "@/modules/profiles/contracts";
 import { getApplyState } from "@/modules/hiring/service";
 import { ApplyButton } from "@/modules/hiring/components/actions";
 import { ownerReputationForPublicJob } from "@/modules/reviews/service";
+import { ReportLink } from "@/modules/moderation/pages";
 
 type Query = Record<string, string | string[] | undefined>;
 async function management(title: string, render: (actor: Principal) => Promise<ReactNode>) {
@@ -124,5 +125,5 @@ export async function PublicJobPage({ id }: { id: string }) {
     <p className="whitespace-pre-wrap">{job.description}</p><p>Thời gian: {job.startDate || "Chưa xác định ngày bắt đầu"} → {job.endDate || "Chưa xác định ngày kết thúc"}</p>
     <section><h2 className="text-xl font-semibold">Lịch làm việc · {job.timezone}</h2><ul>{job.schedule.map((slot) => <li key={`${slot.weekday}-${slot.startHour}`}>{days[slot.weekday]}: {slot.startHour}:00–{slot.endHour}:00</li>)}</ul>{!job.schedule.length && <p>Không có lịch tuần cố định.</p>}</section>
     <section><h2 className="text-xl font-semibold">Kỹ năng</h2><ul>{job.skills.map((skill) => <li key={skill.skillId}>{skill.name} · {skill.minimumLevel} · {skill.required ? "Bắt buộc" : "Ưu tiên"}</li>)}</ul></section>
-    <section className="rounded-md border p-4">{apply}</section></main>;
+    <section className="rounded-md border p-4">{apply}</section><ReportLink type="JOB" id={id} /></main>;
 }

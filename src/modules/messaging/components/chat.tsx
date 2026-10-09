@@ -66,6 +66,7 @@ export function Chat({ side, initial, page }: { side: Side; initial: Conversatio
     <ol className="space-y-4" aria-label="Tin nhắn">{items.map((message) => <li className="rounded-md border p-4" key={message.id}>
       <p className="text-sm">{message.senderDisplay} · {message.senderSide === "WORKER" ? "Người tìm việc" : "Người thuê"} · <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString("vi-VN")}</time></p>
       <p className="whitespace-pre-wrap break-words">{message.body}</p>
+      <a className="text-sm underline" href={`/reports/new?targetType=MESSAGE&targetId=${message.id}`}>Báo cáo tin nhắn</a>
       {!message.own && message.senderSide !== side && <div className="mt-2 flex gap-4 text-sm">{[true, false].map((blocked) => <button className="underline" disabled={busy} key={String(blocked)} onClick={async () => {
         setBusy(true); try { await request(`${root}/block`, { messageId: message.id, blocked }); setConversation(await request<Conversation>(root)); setFeedback(blocked ? "Đã chặn liên hệ mới. Công việc đang hoạt động vẫn giữ quyền trao đổi." : "Đã bỏ chặn từ phía bạn."); }
         catch { setFeedback(failure); } finally { setBusy(false); }

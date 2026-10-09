@@ -10,6 +10,7 @@ import { managedRow } from "@/modules/jobs/service";
 import { AppError } from "@/shared/errors/app-error";
 import { reviewSchema, reviewQuerySchema, reputationDto, emptyFacts } from "./contracts";
 import { getOwnerReputationFacts, getWorkerReputationFacts } from "./query";
+import { visibleRecruitingWhere } from "@/modules/jobs/moderation";
 
 type Side = "WORKER" | "EMPLOYER";
 function reviewDto(row: Review, terms: unknown, completedAt: Date | null) {
@@ -64,7 +65,7 @@ async function reviewList(tx: Prisma.TransactionClient, where: Prisma.ReviewWher
 export async function ownerReputationForPublicJob(db: PrismaClient, jobId: string) {
   parse(opaqueId, jobId);
   return db.$transaction(async (tx) => {
-    const job = await tx.job.findFirst({ where: { id: jobId, status: "PUBLISHED" }, select: { companyId: true, employerProfileId: true } });
+    const job = await tx.job.findFirst({ where: { AND: [{ id: jobId, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: { companyId: true, employerProfileId: true } });
     if (!job) throw new AppError("NOT_FOUND");
     const facts = await getOwnerReputationFacts(tx, job);
     return { rating: reputationDto(facts).rating, completedEngagementCount: facts.completed };
@@ -75,7 +76,7 @@ export async function ownerReviewsForJob(db: PrismaClient, actor: Principal, job
   return db.$transaction(async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", false, true);
     if (user.status !== "ACTIVE") throw new AppError("FORBIDDEN");
-    const job = await tx.job.findFirst({ where: { id: jobId, status: "PUBLISHED" }, select: { companyId: true, employerProfileId: true } });
+    const job = await tx.job.findFirst({ where: { AND: [{ id: jobId, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: { companyId: true, employerProfileId: true } });
     if (!job) throw new AppError("NOT_FOUND");
     return reviewList(tx, { ...(job.companyId ? { companyId: job.companyId } : { companyId: null, employerProfileId: job.employerProfileId }), direction: "WORKER_TO_EMPLOYER" }, raw);
   });

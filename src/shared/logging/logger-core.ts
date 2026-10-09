@@ -6,6 +6,7 @@ type LogEvent = {
   actorId?: string;
   resourceType?: string;
   resourceId?: string;
+  caseId?: string;
   durationMs?: number;
 };
 
@@ -22,6 +23,7 @@ export function createLogger(write: (line: string) => void = console.info) {
         actorId: input.actorId,
         resourceType: input.resourceType,
         resourceId: input.resourceId,
+        caseId: input.caseId,
         durationMs: input.durationMs,
       }));
     },

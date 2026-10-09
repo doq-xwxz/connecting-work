@@ -69,4 +69,5 @@ jobs:
       - run: pnpm test:matching
       - run: pnpm test:messaging
       - run: pnpm test:reviews
+      - run: pnpm test:moderation
       - run: pnpm test:http

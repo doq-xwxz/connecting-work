@@ -12,6 +12,7 @@ import { classifyJobEdit, duplicateTerms, isActive, nextStatus, ownsJob, permits
 import { inputFromRow, jobSelect, managedJobDto, publicJobDto } from "./projection";
 import { hiringEditContext, finishRecruitment } from "@/modules/hiring/job-query";
 import { searchPublicJobs } from "./search";
+import { requireRecruitingVisible, visibleRecruitingWhere } from "./moderation";
 
 async function lockOwner(tx: Prisma.TransactionClient, actor: Principal, profileId: string, companyId: string | null) {
   if (companyId) {
@@ -95,11 +96,12 @@ export async function editJob(db: PrismaClient, actor: Principal, id: string, ra
 export async function transitionJob(db: PrismaClient, actor: Principal, id: string, action: JobAction, raw: unknown) {
   parse(opaqueId, id); const { expectedVersion } = parse(transitionSchema, raw);
   return db.$transaction(async (tx) => {
-    const user = await currentActor(tx, actor, "EMPLOYER", !permitsRestrictedActor(action), true);
+    const user = await currentActor(tx, actor, "EMPLOYER", !permitsRestrictedActor(action), true, permitsRestrictedActor(action) ? "reduce-job-exposure" : undefined);
     const profile = await requireEmployerProfile(tx, actor.id); const row = await managedRow(tx, actor, profile.id, id, true);
     if (row.version !== expectedVersion) throw new AppError("CONFLICT");
     const status = nextStatus(row.status, action);
     if (status === "PUBLISHED") {
+      await requireRecruitingVisible(tx, id);
       if (!user.emailVerified) throw new AppError("FORBIDDEN");
       requirePublishable(inputFromRow(row), row.skills.every((item) => item.skill.active));
       requireQuota((await quotaFor(tx, row)).active, row.status);
@@ -147,7 +149,7 @@ export async function listPublicJobs(db: PrismaClient, raw: unknown) {
 }
 export async function getPublicJob(db: PrismaClient, id: string) {
   parse(opaqueId, id);
-  const row = await db.job.findFirst({ where: { id, status: "PUBLISHED" }, select: jobSelect });
+  const row = await db.job.findFirst({ where: { AND: [{ id, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: jobSelect });
   if (!row) throw new AppError("NOT_FOUND");
   return publicJobDto(row);
 }

@@ -23,5 +23,7 @@ export default async function Page() {
       <dt>Vai trò</dt><dd>{user.roles.join(", ") || "Chưa bật vai trò"}</dd><dt>Trạng thái</dt><dd>{user.status}</dd>
     </dl>
     <AccountControls roles={user.roles} active={user.status === "ACTIVE"} />
+    <Link className="mt-4 block underline" href="/account/reports">Báo cáo của tôi</Link>
+    {user.roles.includes("ADMIN") && user.status === "ACTIVE" && <Link className="mt-4 block underline" href="/admin/cases">Moderation</Link>}
   </main>;
 }

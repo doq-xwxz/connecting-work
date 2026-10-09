@@ -14,6 +14,7 @@ import { activeStatuses, applicationTransition, engagementTransition, expired, o
 import { applicationDto, applicationSelect, offerDto, offerSelect } from "./projection";
 import { matchWorkerJob } from "@/modules/matching/algorithm";
 import { getWorkerReputationFacts } from "@/modules/reviews/query";
+import { requireRecruitingVisible } from "@/modules/jobs/moderation";
 
 type Tx = Prisma.TransactionClient;
 type Side = "WORKER" | "EMPLOYER";
@@ -78,6 +79,7 @@ export async function applyToJob(db: PrismaClient, actor: Principal, jobId: stri
     const user = await currentActor(tx, actor, "WORKER", true, true);
     if (!user.emailVerified) throw new AppError("FORBIDDEN");
     const job = await workerJob(tx, jobId);
+    await requireRecruitingVisible(tx, jobId);
     const worker = await eligibleWorker(tx, actor, user.name, job);
     const previous = await tx.application.findUnique({ where: { jobId_workerProfileId: { jobId, workerProfileId: worker.id } } });
     if (previous) {
@@ -139,6 +141,7 @@ export async function getApplyState(db: PrismaClient, actor: Principal, jobId: s
   parse(opaqueId, jobId);
   return db.$transaction(async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", true, true);
+    await requireRecruitingVisible(tx, jobId);
     const worker = await requireWorkerProfile(tx, actor.id);
     const previous = await tx.application.findUnique({ where: { jobId_workerProfileId: { jobId, workerProfileId: worker.id } }, select: { id: true } });
     if (previous) return { applicationId: previous.id, eligible: false };
@@ -182,6 +185,7 @@ export async function createOffer(db: PrismaClient, actor: Principal, applicatio
     const user = await currentActor(tx, actor, "EMPLOYER", true, true);
     if (!user.emailVerified) throw new AppError("FORBIDDEN");
     const { job, application } = await scopeApplication(tx, actor, "EMPLOYER", applicationId);
+    await requireRecruitingVisible(tx, job.id);
     const now = await serverNow(tx); await normalizeExpiry(tx, applicationId, now);
     const previous = await tx.offer.findUnique({ where: { applicationId_creationKey: { applicationId, creationKey: input.creationKey } }, select: offerSelect });
     if (previous) {
@@ -221,6 +225,7 @@ export async function actOnOffer(db: PrismaClient, actor: Principal, id: string,
     if (offer.status !== "PENDING" || application.engagement) return { conflict: true as const };
     requirePending(offer.status);
     if (action === "accept") {
+      await requireRecruitingVisible(tx, job.id);
       if (!user.emailVerified) throw new AppError("FORBIDDEN");
       const worker = await eligibleWorker(tx, actor, user.name, job);
       if (!["PUBLISHED", "PAUSED", "CLOSED"].includes(job.status) || application.status !== "OFFERED") return { conflict: true as const };

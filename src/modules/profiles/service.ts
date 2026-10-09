@@ -68,7 +68,7 @@ export async function setDiscoverable(db: PrismaClient, actor: Principal, target
   parse(opaqueId, targetId);
   const input = parse(discoveryOptInSchema, raw);
   return db.$transaction(async (tx) => {
-    await currentActor(tx, actor, "WORKER", input.discoverable, true);
+    await currentActor(tx, actor, "WORKER", input.discoverable, true, input.discoverable ? undefined : "privacy-opt-out");
     const own = await requireWorkerProfile(tx, actor.id);
     if (own.id !== targetId) throw new AppError("NOT_FOUND");
     await tx.workerProfile.update({ where: { id: own.id }, data: input });

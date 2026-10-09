@@ -16,6 +16,7 @@ import { preferences } from "./contracts";
 export function MarketplaceNavigation() {
   return <nav aria-label="Khu vực hồ sơ" className="mb-8 flex flex-wrap gap-x-5 gap-y-3 text-sm underline">
     <Link href="/account">Tài khoản / vai trò</Link><Link href="/worker/profile">Hồ sơ tìm việc</Link>
+    <Link href="/account/reports">Báo cáo của tôi</Link>
     <Link href="/worker/applications">Ứng tuyển của bạn</Link>
     <Link href="/worker/jobs/recommended">Việc phù hợp</Link>
     <Link href="/worker/messages">Tin nhắn tìm việc</Link><Link href="/employer/messages">Tin nhắn tuyển dụng</Link><Link href="/notifications">Thông báo</Link>

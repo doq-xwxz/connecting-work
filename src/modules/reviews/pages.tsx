@@ -8,6 +8,7 @@ import { AppError } from "@/shared/errors/app-error";
 import { MarketplaceNavigation } from "@/modules/profiles/pages";
 import type { reputationDto } from "./contracts";
 import { workerReviewsForEmployer, ownerReviewsForJob } from "./service";
+import { ReportLink } from "@/modules/moderation/pages";
 
 export function ReputationSummary({ reputation }: { reputation: ReturnType<typeof reputationDto> }) {
   return <section aria-label="Uy tín" className="space-y-1"><p>Đánh giá: {reputation.rating.average?.toFixed(1) ?? "Chưa có"} / 5 · {reputation.rating.count} đánh giá</p>
@@ -16,7 +17,7 @@ export function ReputationSummary({ reputation }: { reputation: ReturnType<typeo
 }
 export function ReviewList({ items }: { items: Awaited<ReturnType<typeof ownerReviewsForJob>>["items"] }) {
   return <ul className="space-y-3">{items.map((review) => <li className="rounded-md border p-4" key={review.id}><p>{review.rating} / 5 · {review.reviewerDisplay}</p><p>{review.targetDisplay} · {review.jobTitle}</p>
-    <p>Hoàn thành: {review.completedAt ? new Date(review.completedAt).toLocaleDateString("vi-VN") : "Đã xác nhận"}</p><p className="whitespace-pre-wrap">{review.comment}</p><p>{new Date(review.createdAt).toLocaleDateString("vi-VN")}</p></li>)}</ul>;
+    <p>Hoàn thành: {review.completedAt ? new Date(review.completedAt).toLocaleDateString("vi-VN") : "Đã xác nhận"}</p><p className="whitespace-pre-wrap">{review.comment}</p><p>{new Date(review.createdAt).toLocaleDateString("vi-VN")}</p><ReportLink type="REVIEW" id={review.id} /></li>)}</ul>;
 }
 export async function ReviewsPage({ workerId, jobId, query }: { workerId?: string; jobId?: string; query: Record<string, string | string[] | undefined> }) {
   try {
