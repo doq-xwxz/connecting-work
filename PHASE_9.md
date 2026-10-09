@@ -89,7 +89,7 @@ Local verification uses Node 24.20, pnpm 11.25 and a random-credential loopback-
 | Phase 9 PostgreSQL / populated upgrade | PASS |
 | Actual Next HTTP Phase 2–9 | PASS |
 | Observed concurrency / capacity / visibility | PASS |
-| GitHub Actions | Verified after publication; exact run/SHA in final delivery |
+| GitHub Actions | PASS — implementation SHA `2f94ccd89dac9cb03fcc074a07e29ead8f5f3fcd`; both checks/postgres-auth, run 37959575173 |
 
 Tests exercise duplicate reports/privacy/rate budget/target IDOR, fresh admin/current membership, action rollback, immutable audit update/delete rejection, closed/wrong cases, review content/history guard, hide/FTS/acceptance, reputation/coverage/frozen snapshots, forced lifecycle/terminal chat, Company creator independence and banned owner visibility. HTTP uses real sessions/roles/PostgreSQL and intercepts only email transport in its child. Test-only cleanup removes owned fixture audit before target history, never imports into app. The existing pg parallel-query deprecation warning appears in regression internals; pinned pg 8 behavior passes, no runtime dependency changed.
 
@@ -107,8 +107,12 @@ ENGAGEMENT is an additional narrowly scoped report target to fulfill PRODUCT's s
 
 ## 21. Remaining blockers
 
-No local implementation/validation blocker remains. Production readiness/deployment is outside authorization. Publication/remote CI outcomes must be confirmed against the exact pushed SHA; do not substitute local success or an older run. Stop after Phase 9.
+No implementation/validation/publication/remote CI blocker remains for the verified implementation SHA below. Production readiness/deployment is outside authorization. Any later receipt commit must also be checked against its own pushed SHA; do not substitute an older run. Stop after Phase 9.
 
 ## 22. Git commit / remote CI evidence
 
-Publication is explicitly authorized to `https://github.com/doq-xwxz/connecting-work` on current `main`, after staged diff/secret/artifact review. No force push/history rewrite. Final delivery records the actual commit URL, exact `refs/heads/main` match and relevant GitHub Actions job conclusions. This source report does not guess its own future commit SHA or mark remote checks passed before they run.
+Published implementation: [2f94ccd89dac9cb03fcc074a07e29ead8f5f3fcd](https://github.com/doq-xwxz/connecting-work/commit/2f94ccd89dac9cb03fcc074a07e29ead8f5f3fcd), `feat: implement Phase 9 reports and case-bound moderation`, 49 files. `git ls-remote origin refs/heads/main` exactly matched that SHA after the successful push. Staged diff/credential-pattern/artifact checks passed; approved historical files and lockfile are unchanged. No force push/history rewrite.
+
+[Repository checks run 37959575173](https://github.com/doq-xwxz/connecting-work/actions/runs/37959575173) reports that exact head SHA, status COMPLETED, conclusion SUCCESS; both `checks` and `postgres-auth` concluded SUCCESS. This includes fresh Linux PostgreSQL migrations, Phase 2–9 suites, populated upgrade rehearsal and actual Next HTTP. Local disposable fixture counts were zero before the task-owned server was stopped and its temporary binaries/data/random credentials removed.
+
+This documentation receipt is committed separately after observing those results. The final delivery verifies the receipt's exact remote SHA and its own CI run; this report does not guess its own future commit hash.
