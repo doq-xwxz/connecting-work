@@ -14,6 +14,7 @@ import { actOnApplication, actOnEngagement, actOnOffer, applyToJob, createOffer,
 import { applicationActions, engagementActions, offerActions } from "@/modules/hiring/contracts";
 import { recommendedJobs, recommendedCandidates } from "@/modules/matching/service";
 import { getConversation, listConversations, listMessages, listNotifications, markConversationRead, openConversation, readNotification, sendMessage, setBlock } from "@/modules/messaging/service";
+import { getEngagementReviews, submitReview, ownerReputationForPublicJob, ownerReviewsForJob, workerReviewsForEmployer } from "@/modules/reviews/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     }
     if (request.method === "GET" && area === "jobs" && path.length <= 2) {
       if (path.length === 2) parse(z.strictObject({}), query);
-      return Response.json(path.length === 1 ? await listPublicJobs(db, query) : await getPublicJob(db, id), { headers: { "Cache-Control": "no-store" } });
+      return Response.json(path.length === 1 ? await listPublicJobs(db, query) : { ...await getPublicJob(db, id), reputation: await ownerReputationForPublicJob(db, id) }, { headers: { "Cache-Control": "no-store" } });
     }
     const actor = await requireAuthenticatedUser(request.headers);
     let result: unknown;
@@ -39,7 +40,10 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     if (request.method !== "GET" && (chatSide || area === "notifications")) parse(z.strictObject({}), query);
     if (["worker-applications", "employer-applications", "offers", "worker-engagements", "employer-engagements"].includes(area) && (request.method !== "GET" || path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET") {
-      if (chatSide && path.length === 1) result = await listConversations(db, actor, chatSide, query);
+      if (["worker-engagements", "employer-engagements"].includes(area) && path.length === 3 && action === "reviews") { parse(z.strictObject({}), query); result = await getEngagementReviews(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id); }
+      else if (area === "jobs" && path.length === 3 && action === "reviews") result = await ownerReviewsForJob(db, actor, id, query);
+      else if (area === "workers" && path.length === 3 && action === "reviews") result = await workerReviewsForEmployer(db, actor, id, query);
+      else if (chatSide && path.length === 1) result = await listConversations(db, actor, chatSide, query);
       else if (chatSide && path.length === 2) { parse(z.strictObject({}), query); result = await getConversation(db, actor, chatSide, id); }
       else if (chatSide && path.length === 3 && action === "messages") result = await listMessages(db, actor, chatSide, id, query);
       else if (area === "notifications" && path.length === 1) result = await listNotifications(db, actor, query);
@@ -62,7 +66,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     } else {
       const body = await readJsonBody(request);
       if (area === "employer-jobs") parse(z.strictObject({}), query);
-      if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && action === "conversation") result = await openConversation(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, body);
+      if (request.method === "POST" && path.length === 3 && ["worker-engagements", "employer-engagements"].includes(area) && action === "reviews") result = await submitReview(db, actor, area === "worker-engagements" ? "WORKER" : "EMPLOYER", id, body);
+      else if (request.method === "POST" && path.length === 3 && ["worker-applications", "employer-applications"].includes(area) && action === "conversation") result = await openConversation(db, actor, area === "worker-applications" ? "WORKER" : "EMPLOYER", id, body);
       else if (request.method === "POST" && chatSide && path.length === 3 && action === "messages") result = await sendMessage(db, actor, chatSide, id, body);
       else if (request.method === "POST" && chatSide && path.length === 3 && action === "read") result = await markConversationRead(db, actor, chatSide, id, body);
       else if (request.method === "POST" && chatSide && path.length === 3 && action === "block") result = await setBlock(db, actor, chatSide, id, body);

@@ -37,6 +37,7 @@ model User {
   createdCompanies   Company[]        @relation("CompanyCreator")
   createdJobs        Job[]            @relation("JobCreator")
   messages           Message[]
+  reviews Review[]
   conversationReads ConversationReadState[]
   notifications     Notification[]
   blocksMade        UserBlock[] @relation("Blocker")
@@ -183,6 +184,7 @@ model WorkerProfile {
   applications Application[]
   engagements Engagement[]
   conversations Conversation[]
+  reviews Review[]
 
   @@index([discoverable, city, id])
 }
@@ -237,6 +239,7 @@ model EmployerProfile {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   jobs        Job[]
+  reviews Review[]
 }
 
 model Company {
@@ -255,6 +258,7 @@ model Company {
   updatedAt       DateTime            @updatedAt
   members         CompanyMember[]
   jobs            Job[]
+  reviews Review[]
 
   @@unique([createdByUserId, creationKey])
 }
@@ -443,11 +447,45 @@ model Engagement {
   acceptedOffer         Offer @relation(fields: [acceptedOfferId, applicationId, jobId], references: [id, applicationId, jobId], onDelete: Restrict)
   job                   Job @relation(fields: [jobId], references: [id], onDelete: Restrict)
   worker                WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
+  reviews Review[]
 
   @@index([jobId, status])
   @@unique([applicationId, jobId, workerProfileId])
   @@unique([acceptedOfferId, applicationId, jobId])
   @@index([workerProfileId, status, id])
+}
+
+enum ReviewDirection {
+  WORKER_TO_EMPLOYER
+  EMPLOYER_TO_WORKER
+}
+
+// SQL also validates the completed Engagement and its stable marketplace owner.
+// Historical references use RESTRICT in the migration, never account cascades.
+model Review {
+  id String @id @default(uuid())
+  engagementId String
+  direction ReviewDirection
+  reviewerUserId String
+  workerProfileId String
+  employerProfileId String?
+  companyId String?
+  rating Int
+  comment String?
+  creationKey String
+  createdAt DateTime @default(now())
+  hiddenAt DateTime?
+  engagement Engagement @relation(fields: [engagementId], references: [id], onDelete: Restrict)
+  reviewer User @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
+  worker WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Restrict)
+  employer EmployerProfile? @relation(fields: [employerProfileId], references: [id], onDelete: Restrict)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([engagementId, direction])
+  @@index([workerProfileId, direction, hiddenAt, createdAt, id])
+  @@index([employerProfileId, direction, hiddenAt, createdAt, id])
+  @@index([companyId, direction, hiddenAt, createdAt, id])
+  @@index([reviewerUserId])
 }
 
 model JobSkill {

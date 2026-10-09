@@ -18,6 +18,7 @@ import { JobActions } from "./components/job-actions";
 import { preferences, workModes } from "@/modules/profiles/contracts";
 import { getApplyState } from "@/modules/hiring/service";
 import { ApplyButton } from "@/modules/hiring/components/actions";
+import { ownerReputationForPublicJob } from "@/modules/reviews/service";
 
 type Query = Record<string, string | string[] | undefined>;
 async function management(title: string, render: (actor: Principal) => Promise<ReactNode>) {
@@ -106,6 +107,7 @@ export async function PublicJobPage({ id }: { id: string }) {
     return <main className="mx-auto max-w-3xl px-6 py-12"><h1 className="text-2xl font-semibold">Không thể tải tin</h1><Link href="/jobs">Về danh sách</Link></main>;
   }
   const days = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  const reputation = await ownerReputationForPublicJob(getDb(), id);
   let apply: ReactNode = <p>Hoàn thiện hồ sơ tìm việc và xác thực email để ứng tuyển.</p>;
   try {
     const actor = await requireAuthenticatedUser(await headers());
@@ -117,6 +119,7 @@ export async function PublicJobPage({ id }: { id: string }) {
   }
   return <main className="mx-auto max-w-3xl space-y-5 px-6 py-12"><Link className="underline" href="/jobs">Về danh sách</Link><h1 className="text-3xl font-semibold">{job.title}</h1>
     <p>{job.owner.displayName} · {job.owner.kind === "COMPANY" ? (job.owner.verification === "VERIFIED" ? "Công ty đã xác minh" : "Công ty chưa xác minh") : "Người thuê cá nhân"}</p>
+    <section aria-label="Uy tín người thuê"><p>Đánh giá: {reputation.rating.average?.toFixed(1) ?? "Chưa có"} / 5 · {reputation.rating.count} đánh giá · {reputation.completedEngagementCount} công việc hoàn thành</p><Link className="underline" href={`/worker/jobs/${id}/reviews`}>Xem đánh giá công việc đã hoàn thành</Link></section>
     <p>{job.category} · {job.employmentType} · {job.workMode} · {job.city || "Từ xa"}</p><Compensation job={job} /><p>Cần {job.headcount} người</p>
     <p className="whitespace-pre-wrap">{job.description}</p><p>Thời gian: {job.startDate || "Chưa xác định ngày bắt đầu"} → {job.endDate || "Chưa xác định ngày kết thúc"}</p>
     <section><h2 className="text-xl font-semibold">Lịch làm việc · {job.timezone}</h2><ul>{job.schedule.map((slot) => <li key={`${slot.weekday}-${slot.startHour}`}>{days[slot.weekday]}: {slot.startHour}:00–{slot.endHour}:00</li>)}</ul>{!job.schedule.length && <p>Không có lịch tuần cố định.</p>}</section>

@@ -21,6 +21,7 @@
     "test:hiring": "prisma generate && node --conditions=react-server --import=tsx scripts/hiring-integration.ts",
     "test:matching": "prisma generate && node --conditions=react-server --import=tsx scripts/matching-integration.ts",
     "test:messaging": "prisma generate && node --conditions=react-server --import=tsx scripts/messaging-integration.ts",
+    "test:reviews": "prisma generate && node --conditions=react-server --import=tsx scripts/reviews-integration.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",

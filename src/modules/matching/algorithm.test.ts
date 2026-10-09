@@ -12,11 +12,25 @@ const job: JobInput = { title: "Excel", description: "Data", category: "FINANCE_
   startDate: null, endDate: null, timezone: "Asia/Ho_Chi_Minh", skills: [{ skillId: worker.skills[0].skillId, required: true, minimumLevel: "INTERMEDIATE" }], schedule: worker.availability };
 const match = (w: Partial<WorkerInput> = {}, j: Partial<JobInput> = {}, status = "PUBLISHED") => matchWorkerJob({ ...worker, ...w }, "Name", { ...job, ...j }, status, now);
 const component = (result: ReturnType<typeof match>, key: string) => result.components.find((item) => item.key === key)!;
+describe("matching v2 trusted reputation", () => {
+  it.each([[1, 0], [2, 25], [3, 50], [4, 75], [5, 100]])("maps %s stars to %s", (ratingSum, expected) => {
+    const result = matchWorkerJob(worker, "Name", job, "PUBLISHED", now, undefined, { ratingSum, ratingCount: 1, completed: 0, relevantCancelled: 0 });
+    expect(component(result, "rating").score).toBe(expected); expect(result.coverage).toBe(75);
+  });
+  it("uses exact sum/count and outcome ratio without presentation rounding", () => {
+    const result = matchWorkerJob(worker, "Name", job, "PUBLISHED", now, undefined, { ratingSum: 17, ratingCount: 4, completed: 2, relevantCancelled: 1 });
+    expect(result.coverage).toBe(80); expect(result.score).toBe(97); expect(component(result, "rating").score).toBe(81); expect(component(result, "reliability").score).toBe(67);
+  });
+  it("adds covered history only and keeps relevance thresholds", () => {
+    const result = matchWorkerJob({ ...worker, availability: [] }, "Name", job, "PUBLISHED", now, undefined, { ratingSum: 5, ratingCount: 1, completed: 1, relevantCancelled: 0 });
+    expect(result.coverage).toBe(60); expect(result.score).toBe(100); expect(isRelevantMatch(result)).toBe(true);
+  });
+});
 describe("versioned deterministic matching", () => {
   it("keeps exactly the approved seven weights and deterministic output", () => {
     expect(Object.values(matchingConfig.weights).reduce((a, b) => a + b, 0)).toBe(100);
     expect(matchingConfig.weights).toEqual({ skills: 35, availability: 20, location: 15, compensation: 10, experience: 10, rating: 5, reliability: 5 });
-    expect(match()).toEqual(match()); expect(match().weightsVersion).toBe("v1"); expect(match().algorithmVersion).toBe("deterministic-v1");
+    expect(match()).toEqual(match()); expect(match().weightsVersion).toBe("v1"); expect(match().algorithmVersion).toBe("deterministic-v2");
     expect(match()).toMatchObject({ eligible: true, score: 100, coverage: 70, computedAt: now.toISOString() });
   });
   it.each(["compensation", "experience", "rating", "reliability"])("leaves absent trusted %s uncovered", (key) => expect(component(match(), key)).toMatchObject({ covered: false, score: null, weightedContribution: null }));

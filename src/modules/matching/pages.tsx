@@ -9,6 +9,7 @@ import { getDb } from "@/shared/db/client";
 import { AppError } from "@/shared/errors/app-error";
 import { recommendedCandidates, recommendedJobs } from "./service";
 import type { MatchResult } from "./algorithm";
+import { ReputationSummary } from "@/modules/reviews/pages";
 
 const labels = { skills: "Kỹ năng", availability: "Thời gian", location: "Khu vực / hình thức", compensation: "Thu nhập", experience: "Kinh nghiệm", rating: "Đánh giá", reliability: "Lịch sử hoàn thành / phản hồi" };
 export function MatchExplanation({ match }: { match: MatchResult }) {
@@ -28,6 +29,7 @@ export async function RecommendationsPage({ jobId, query }: { jobId?: string; qu
       <ul className="mt-5 space-y-4">{page.items.map((item) => <li key={item.id} className="rounded-md border p-4">{"title" in item
         ? <Link className="text-xl underline" href={`/jobs/${item.id}`}>{item.title}</Link>
         : <><h2 className="text-xl">{item.displayName}</h2><p>{item.headline} · {item.city || "Từ xa"}</p><p>Hồ sơ: {item.profileCompleteness.percentage}%</p><p>{item.skills.map((skill) => `${skill.name} (${skill.level})`).join(", ")}</p></>}
+        {"reputation" in item && <><ReputationSummary reputation={item.reputation} /><Link className="underline" href={`/employer/workers/${item.id}/reviews`}>Xem đánh giá</Link></>}
         <MatchExplanation match={item.match} /></li>)}</ul>
       {page.nextCursor && <Link className="mt-5 block underline" href={`?cursor=${encodeURIComponent(page.nextCursor)}&limit=${typeof query.limit === "string" ? encodeURIComponent(query.limit) : 12}`}>Trang tiếp</Link>}</>;
   } catch (error) {

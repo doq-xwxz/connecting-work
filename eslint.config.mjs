@@ -12,5 +12,5 @@ export default defineConfig([
       ...nextPlugin.configs["core-web-vitals"].rules,
     },
   },
-  globalIgnores([".next/**", "out/**", "coverage/**", "src/generated/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", ".tmp/**", "out/**", "coverage/**", "src/generated/**", "next-env.d.ts"]),
 ]);

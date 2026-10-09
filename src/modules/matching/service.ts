@@ -11,6 +11,8 @@ import { inputFromRow, jobSelect, publicJobDto } from "@/modules/jobs/projection
 import { managedRow } from "@/modules/jobs/service";
 import { AppError } from "@/shared/errors/app-error";
 import { matchingConfig, matchWorkerJob, type MatchResult } from "./algorithm";
+import { getWorkerReputationFacts } from "@/modules/reviews/query";
+import { reputationDto } from "@/modules/reviews/contracts";
 
 export const CANDIDATE_POOL_LIMIT = 200;
 const querySchema = pageSchema.extend({ cursor: z.string().regex(/^[A-Za-z0-9_-]{1,600}$/).optional() });
@@ -41,7 +43,8 @@ export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: u
       select: jobSelect, orderBy: { id: "asc" }, take: CANDIDATE_POOL_LIMIT });
     const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AT TIME ZONE 'UTC' AS now`;
     const offsetCache = new Map<string, number | null>();
-    const data = rows.map((row) => ({ ...publicJobDto(row), match: matchWorkerJob(worker, worker.displayName, inputFromRow(row), row.status, clock.now, offsetCache) }));
+    const facts = (await getWorkerReputationFacts(tx, [own.id])).get(own.id)!;
+    const data = rows.map((row) => ({ ...publicJobDto(row), match: matchWorkerJob(worker, worker.displayName, inputFromRow(row), row.status, clock.now, offsetCache, facts) }));
     return { ...rankPage(data, raw, `worker:${own.id}:${matchingConfig.weightsVersion}:${matchingConfig.algorithmVersion}`), profileCompleteness: worker.completeness };
   }, { timeout: 15000 });
 }
@@ -62,10 +65,11 @@ export async function recommendedCandidates(db: PrismaClient, actor: Principal, 
     const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AT TIME ZONE 'UTC' AS now`;
     const offsetCache = new Map<string, number | null>();
     const terms = inputFromRow(job);
+    const facts = await getWorkerReputationFacts(tx, rows.map((row) => row.id));
     const data = rows.map((row) => {
       const worker = selfWorkerDto(row);
       return { ...discoveryWorkerDto(row), profileCompleteness: worker.completeness,
-        match: matchWorkerJob(worker, row.user.name, terms, job.status, clock.now, offsetCache) };
+        reputation: reputationDto(facts.get(row.id)!), match: matchWorkerJob(worker, row.user.name, terms, job.status, clock.now, offsetCache, facts.get(row.id)) };
     });
     return rankPage(data, raw, `employer:${actor.id}:${job.id}:${matchingConfig.weightsVersion}:${matchingConfig.algorithmVersion}`);
   }, { timeout: 15000 });

@@ -1,7 +1,8 @@
 import type { JobInput } from "@/modules/jobs/contracts";
+import type { ReputationFacts } from "@/modules/reviews/contracts";
 import { completeness, levels, type WorkerInput } from "@/modules/profiles/contracts";
 
-export const matchingConfig = Object.freeze({ weightsVersion: "v1", algorithmVersion: "deterministic-v1",
+export const matchingConfig = Object.freeze({ weightsVersion: "v1", algorithmVersion: "deterministic-v2",
   weights: Object.freeze({ skills: 35, availability: 20, location: 15, compensation: 10, experience: 10, rating: 5, reliability: 5 }) });
 type ComponentKey = keyof typeof matchingConfig.weights;
 type Fraction = { n: bigint; d: bigint };
@@ -50,7 +51,7 @@ export type MatchResult = {
   components: { key: ComponentKey; weight: number; covered: boolean; score: number | null; weightedContribution: number | null; explanation: string }[];
   weightsVersion: string; algorithmVersion: string; computedAt: string;
 };
-export function matchWorkerJob(worker: WorkerInput, name: string, job: JobInput, status: string, computedAt: Date, offsetCache = new Map<string, number | null>()): MatchResult {
+export function matchWorkerJob(worker: WorkerInput, name: string, job: JobInput, status: string, computedAt: Date, offsetCache = new Map<string, number | null>(), reputation?: ReputationFacts): MatchResult {
   const reasons: string[] = [];
   if (!["PUBLISHED", "PAUSED"].includes(status)) reasons.push("JOB_NOT_MATCHABLE");
   if (!name.trim() || !completeness(worker).complete || (["PART_TIME", "TEMPORARY", "SHIFT"].includes(job.employmentType ?? "") && !worker.availability.length)) reasons.push("WORKER_PROFILE_INCOMPLETE");
@@ -72,7 +73,8 @@ export function matchWorkerJob(worker: WorkerInput, name: string, job: JobInput,
     availability: availabilityResult,
     location: { value: locationCovered ? fraction(compatible && (job.workMode === "REMOTE" || cityEqual) ? 1 : 0) : null, explanation: "COARSE_CITY_AND_WORK_MODE" },
     compensation: { value: null, explanation: "WORKER_EXPECTATION_NOT_MODELLED" }, experience: { value: null, explanation: "EXPERIENCE_NOT_MODELLED" },
-    rating: { value: null, explanation: "TRUSTED_RATING_NOT_AVAILABLE" }, reliability: { value: null, explanation: "TRUSTED_HISTORY_NOT_AVAILABLE" },
+    rating: { value: reputation?.ratingCount ? fraction(reputation.ratingSum - reputation.ratingCount, 4 * reputation.ratingCount) : null, explanation: "VISIBLE_REVIEW_AVERAGE_MINUS_ONE_OVER_FOUR" },
+    reliability: { value: reputation && reputation.completed + reputation.relevantCancelled > 0 ? fraction(reputation.completed, reputation.completed + reputation.relevantCancelled) : null, explanation: "COMPLETED_OVER_COMPLETED_PLUS_WORKER_CANCELLED" },
   };
   let coveredWeight = 0, total = fraction(0);
   const components = (Object.entries(matchingConfig.weights) as [ComponentKey, number][]).map(([key, weight]) => {

@@ -13,6 +13,7 @@ import { acceptedSnapshotSchema, applySchema, cancellationSchema, emptySchema, h
 import { activeStatuses, applicationTransition, engagementTransition, expired, occupiedStatuses, requireCapacity, requireEligibility, requirePending } from "./policy";
 import { applicationDto, applicationSelect, offerDto, offerSelect } from "./projection";
 import { matchWorkerJob } from "@/modules/matching/algorithm";
+import { getWorkerReputationFacts } from "@/modules/reviews/query";
 
 type Tx = Prisma.TransactionClient;
 type Side = "WORKER" | "EMPLOYER";
@@ -85,7 +86,8 @@ export async function applyToJob(db: PrismaClient, actor: Principal, jobId: stri
     }
     if (job.status !== "PUBLISHED") throw new AppError("CONFLICT");
     requireCapacity(await tx.engagement.count({ where: { jobId, status: { in: occupiedStatuses } } }), job.headcount);
-    const match = matchWorkerJob(selfWorkerDto(worker), user.name, inputFromRow(job), job.status, await serverNow(tx));
+    const facts = (await getWorkerReputationFacts(tx, [worker.id])).get(worker.id)!;
+    const match = matchWorkerJob(selfWorkerDto(worker), user.name, inputFromRow(job), job.status, await serverNow(tx), undefined, facts);
     const row = await tx.application.create({ data: { jobId, workerProfileId: worker.id, creationKey,
       matchEligibleAtApply: match.eligible, matchScoreAtApply: match.score, matchCoverageAtApply: match.coverage,
       matchWeightsVersion: match.weightsVersion, matchAlgorithmVersion: match.algorithmVersion, matchedAt: new Date(match.computedAt) } });
