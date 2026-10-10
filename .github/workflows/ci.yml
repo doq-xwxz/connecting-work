@@ -61,6 +61,7 @@ jobs:
       - run: pnpm db:validate
       - run: pnpm db:deploy
       - run: pnpm db:status
+      - run: pnpm db:release-check
       - run: pnpm db:smoke
       - run: pnpm test:integration
       - run: pnpm test:profiles

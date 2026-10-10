@@ -17,3 +17,6 @@ minimumReleaseAgeExclude:
 
 
 verifyDepsBeforeRun: error
+overrides:
+  # Phase 12: same-major security patch for unused transitive MySQL drivers.
+  mysql2: 3.23.1

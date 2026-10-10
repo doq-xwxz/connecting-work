@@ -39,6 +39,15 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     const account=await request("/account",undefined,cookie);assert.equal(account.status,200);assert.match(await account.text(),/Production smoke/);assert.match(account.headers.get("cache-control")!,/no-store/);assert.equal(account.headers.get("referrer-policy"),"no-referrer");
     for(const path of ["/","/sign-in","/jobs","/api/marketplace/jobs"]) {const r=await request(path);assert.equal(r.status,200);const csp=r.headers.get("content-security-policy")!;assert(csp.includes("frame-ancestors 'none'")&&!csp.includes("unsafe-eval"));assert.equal(r.headers.get("x-content-type-options"),"nosniff");assert.equal(r.headers.get("strict-transport-security"),null);}
     const denied=await request("/api/admin/cases",undefined,cookie);assert.equal(denied.status,403);assert.equal((await denied.json()).code,"FORBIDDEN");
+    stage="production private indexing policy";
+    for(const path of ["/account", "/api/admin/cases", "/sign-in", "/verify-email", "/reset-password"]) {
+      const response=await request(path,undefined,cookie);
+      assert.equal(response.headers.get("x-robots-tag"),"noindex, nofollow");
+      assert.match(response.headers.get("cache-control")!,/no-store/);
+    }
+    const robots=await request("/robots.txt");assert.equal(robots.status,200);
+    const robotsText=await robots.text();for(const path of ["/api/", "/admin", "/worker", "/employer", "/verify-email"])assert(robotsText.includes(`Disallow: ${path}`));
+    assert.equal((await request("/jobs")).headers.get("x-robots-tag"),null);
     assert.equal((await request("/api/auth/sign-up/email",{email:`other-${email}`,password,name:"Unavailable mail"})).status,503);
     assert.equal((await request("/api/auth/sign-out",{},cookie)).status,200);assert.equal((await request("/account",undefined,cookie)).status,307);
     stage="production readiness unavailable without leaking configuration";
