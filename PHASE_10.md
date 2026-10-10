@@ -112,7 +112,7 @@ All test helpers require explicit TEST_DATABASE_URL, disposable marker, test-des
 | production next start smoke | PASS; no HTTP mail preload/deployment |
 | dependency audit | FAIL; four outstanding transitive advisories classified above |
 | secret/artifact scan and staged diff | PASS; only documented placeholders and CI-only DB credentials matched, exact task credential absent from eligible files/public chunks |
-| GitHub Actions | Pending publication at document creation; see delivery receipt |
+| GitHub Actions | PASS; implementation run 38031087149, both jobs and all validation steps successful |
 
 The existing pg deprecation warning about overlapping client.query calls remains nonfatal with the pinned pg version; no unsupported pg 9 migration was attempted. No missing DB was disguised as passing.
 
@@ -134,4 +134,6 @@ User review/explicit authorization is required before Phase 11. No known unresol
 
 ## 22. Git commit / remote CI evidence
 
-Publication follows staged security/diff review on current main without force push. The implementation SHA and exact remote CI run are recorded in the publication receipt after GitHub executes this version; local checks are not a remote CI PASS claim. Stop after Phase 10.
+Implementation committed and pushed on main without force push: [35c5a75fbda62bbdeaf846a9bd9b0790e6a04113](https://github.com/doq-xwxz/connecting-work/commit/35c5a75fbda62bbdeaf846a9bd9b0790e6a04113). git ls-remote confirmed that exact origin/main SHA. [GitHub Actions run 38031087149](https://github.com/doq-xwxz/connecting-work/actions/runs/38031087149) completed successfully at 2026-10-10 06:32:14 UTC. Both checks and postgres-auth completed success; every frozen install/schema/static/build/migration/smoke/Phase 2–10/HTTP/production step was success, not skipped.
+
+Before publication, 54 staged files passed diff/credential/artifact review; historical product/reports/migrations/lockfile stayed intact. Local disposable PostgreSQL was stopped and its entire task-owned binary/data/password/log directory removed after validation. No production server/database or email was used. This documentation receipt is a subsequent commit; its final remote SHA/CI evidence is supplied in the delivery response. Stop after Phase 10.
