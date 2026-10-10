@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 import { AppError } from "../src/shared/errors/app-error";
 import type { Principal, Role } from "../src/modules/auth/policy";
 import { saveEmployer, saveWorker } from "../src/modules/profiles/service";
@@ -17,7 +17,7 @@ nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "disposable") {
   console.error("BLOCKED: hiring integration requires TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable."); process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const tag = `phase5-${randomUUID()}`;
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL, max: 12, application_name: tag }) });
   const users: string[] = [], companies: string[] = [];
@@ -177,7 +177,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.ok(effectiveShortlist.items.some((row) => row.id === expApp.id && row.offer?.status === "EXPIRED"));
     assert.ok(!(await listApplications(db, three, "WORKER", { status: "OFFERED" })).items.some((row) => row.id === expApp.id));
     assert.equal((await getApplication(db, three, "WORKER", expApp.id)).offer!.status, "EXPIRED");
-    assert.equal((await db.offer.findUniqueOrThrow({ where: { id: readExpiry.id } })).status, "EXPIRED");
+    assert.equal((await db.offer.findUniqueOrThrow({ where: { id: readExpiry.id } })).status, "PENDING"); // GET projection is write-free.
     expiryJob = await move(owner, expiryJob, "close"); await denied(() => offer(expApp.id));
     await move(owner, expiryJob, "cancel"); await denied(() => apply(three, expiryJob));
     assert.equal((await getApplication(db, three, "WORKER", expApp.id)).status, "CANCELLED");
@@ -289,7 +289,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
       await db.jobSkill.deleteMany({ where: { jobId: { in: jobIds } } }); await db.jobScheduleWindow.deleteMany({ where: { jobId: { in: jobIds } } }); await db.job.deleteMany({ where: { id: { in: jobIds } } });
       await db.companyMember.deleteMany({ where: { companyId: { in: companies } } }); await db.company.deleteMany({ where: { id: { in: companies } } });
       await db.workerProfile.deleteMany({ where: { userId: { in: users } } }); await db.employerProfile.deleteMany({ where: { userId: { in: users } } });
-      await db.userRole.deleteMany({ where: { userId: { in: users } } }); await db.user.deleteMany({ where: { id: { in: users } } });
+      await db.userRole.deleteMany({ where: { userId: { in: users } } }); await db.rateLimit.deleteMany({ where: { key: { in: users.map((id) => `job-draft:user:${id}`) } } }); await db.user.deleteMany({ where: { id: { in: users } } });
     } catch { console.error("FAIL: hiring fixture cleanup; sensitive diagnostics suppressed."); process.exitCode = 1; }
     await db.$disconnect();
   }

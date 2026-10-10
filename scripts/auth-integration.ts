@@ -9,7 +9,7 @@ import { grantNormalRole, resolvePrincipal } from "../src/modules/auth/service";
 import { requireCanCreateActivity } from "../src/modules/auth/policy";
 import type { AuthEmail } from "../src/shared/email/contract";
 import { createEmailVerificationToken } from "better-auth/api";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 
 nextEnv.loadEnvConfig(process.cwd());
 // Explicit operator consent, never infer a production URL from DATABASE_URL.
@@ -17,7 +17,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   console.error("BLOCKED: configure TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable; apply committed migrations to that database first.");
   process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL, max: 5 }) });
   const messages: AuthEmail[] = []; // Test-only fake provider. Never used by app runtime.
   const origin = "http://localhost:3099";

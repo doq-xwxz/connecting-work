@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import type { Prisma, PrismaClient, AuditAction, ModerationCase, Report, ReportReason } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -11,6 +12,8 @@ import { lockChatApplication } from "@/modules/hiring/chat-query";
 import { opaqueId, parse } from "@/modules/profiles/contracts";
 import { AppError } from "@/shared/errors/app-error";
 import { logger } from "@/shared/logging/logger";
+import { requireRate } from "@/shared/security/rate-limit";
+import { rateRules } from "@/shared/security/rate-config";
 import { authorizeReportTarget } from "./report-target";
 import { actionSchema, actionTarget, attachSchema, casesQuerySchema, closeSchema, createCaseSchema, reasonSchema, reportSchema,
   reportsQuerySchema, reportDetailsSchema, reportContextSchema, requireBinding, requireOpenCase, targetSchema, timelineSchema, type ModerationAction, type Target } from "./contracts";
@@ -46,17 +49,13 @@ async function targetExists(tx: Tx, type: Target, id: string) {
 }
 export async function createReport(db: PrismaClient, actor: Principal, raw: unknown) {
   const input = parse(reportSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const fresh = await reporter(tx, actor);
     await authorizeReportTarget(tx, fresh, input.targetType, input.targetId);
     const existing = await tx.report.findFirst({ where: { reporterUserId: actor.id, targetType: input.targetType, targetId: input.targetId, status: { in: ["OPEN", "IN_REVIEW"] } } });
     if (existing) return receipt(existing);
-    const now = await clock(tx), key = `report:user:${actor.id}`;
-    const bucket = await tx.rateLimit.findUnique({ where: { key } });
-    const sameWindow = bucket && now.getTime() - Number(bucket.lastRequest) < 3600000;
-    if (sameWindow && bucket.count >= 10) throw new AppError("RATE_LIMITED");
-    await tx.rateLimit.upsert({ where: { key }, create: { id: crypto.randomUUID(), key, count: 1, lastRequest: BigInt(now.getTime()) },
-      update: sameWindow ? { count: { increment: 1 } } : { count: 1, lastRequest: BigInt(now.getTime()) } });
+    const now = await clock(tx);
+    await requireRate(tx, `report:user:${actor.id}`, rateRules.reportUser);
     return receipt(await tx.report.create({ data: { ...input, reporterUserId: actor.id, createdAt: now } }));
   });
 }
@@ -69,17 +68,17 @@ async function counterpartyTarget(tx: Tx, actor: Principal, raw: unknown) {
     : { targetType: "USER" as const, targetId: context.job.employer.userId };
 }
 export async function reportCounterpartyTarget(db: PrismaClient, actor: Principal, raw: unknown) {
-  return db.$transaction(async (tx) => { const target = await counterpartyTarget(tx, actor, raw); return { targetType: target.targetType }; });
+  return transaction(db, async (tx) => { const target = await counterpartyTarget(tx, actor, raw); return { targetType: target.targetType }; });
 }
 export async function reportCounterparty(db: PrismaClient, actor: Principal, context: unknown, raw: unknown) {
   const details = parse(reportDetailsSchema, raw);
-  const target = await db.$transaction((tx) => counterpartyTarget(tx, actor, context));
+  const target = await transaction(db, (tx) => counterpartyTarget(tx, actor, context));
   // The normal report transaction rechecks fresh status, relationship and membership.
   return createReport(db, actor, { ...target, ...details });
 }
 export async function listOwnReports(db: PrismaClient, actor: Principal, raw: unknown) {
   const q = parse(reportsQuerySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await reporter(tx, actor);
     const rows = await tx.report.findMany({ where: { reporterUserId: actor.id, ...(q.status ? { status: q.status } : {}), ...(q.targetType ? { targetType: q.targetType } : {}), ...(q.cursor ? { id: { gt: q.cursor } } : {}) }, orderBy: { id: "asc" }, take: q.limit + 1 });
     const page = rows.slice(0, q.limit);
@@ -88,11 +87,11 @@ export async function listOwnReports(db: PrismaClient, actor: Principal, raw: un
 }
 export async function reportFormTarget(db: PrismaClient, actor: Principal, raw: unknown) {
   const input = parse(targetSchema, raw);
-  return db.$transaction(async (tx) => { const fresh = await reporter(tx, actor); await authorizeReportTarget(tx, fresh, input.targetType, input.targetId); return { targetType: input.targetType }; });
+  return transaction(db, async (tx) => { const fresh = await reporter(tx, actor); await authorizeReportTarget(tx, fresh, input.targetType, input.targetId); return { targetType: input.targetType }; });
 }
 export async function listAdminReports(db: PrismaClient, actor: Principal, raw: unknown) {
   const q = parse(reportsQuerySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const rows = await tx.report.findMany({ where: { ...(q.status ? { status: q.status } : {}), ...(q.targetType ? { targetType: q.targetType } : {}), ...(q.cursor ? { id: { gt: q.cursor } } : {}) },
       select: { id: true, targetType: true, targetId: true, reasonCode: true, status: true, createdAt: true, cases: { select: { caseId: true } } }, orderBy: { id: "asc" }, take: q.limit + 1 });
@@ -102,7 +101,7 @@ export async function listAdminReports(db: PrismaClient, actor: Principal, raw: 
 }
 export async function listCases(db: PrismaClient, actor: Principal, raw: unknown) {
   const q = parse(casesQuerySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const rows = await tx.moderationCase.findMany({ where: { ...(q.status ? { status: q.status } : {}), ...(q.severity ? { severity: q.severity } : {}), ...(q.targetType ? { targetType: q.targetType } : {}), ...(q.cursor ? { id: { gt: q.cursor } } : {}) }, orderBy: { id: "asc" }, take: q.limit + 1 });
     const page = rows.slice(0, q.limit);
@@ -122,7 +121,7 @@ async function attach(tx: Tx, actor: Principal, c: ModerationCase, reportId: str
 }
 export async function createCase(db: PrismaClient, actor: Principal, raw: unknown) {
   const input = parse(createCaseSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     await targetExists(tx, input.targetType, input.targetId);
     const c = await tx.moderationCase.create({ data: { targetType: input.targetType, targetId: input.targetId, severity: input.severity, openedByAdminUserId: actor.id, createdAt: await clock(tx) } });
@@ -134,7 +133,7 @@ export async function createCase(db: PrismaClient, actor: Principal, raw: unknow
 }
 export async function attachReport(db: PrismaClient, actor: Principal, caseId: string, raw: unknown) {
   parse(opaqueId, caseId); const input = parse(attachSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const c = await lockedCase(tx, caseId);
     await attach(tx, actor, c, input.reportId, { reason: input.reason, reasonCode: input.reasonCode });
@@ -144,7 +143,7 @@ export async function attachReport(db: PrismaClient, actor: Principal, caseId: s
 export async function progressCase(db: PrismaClient, actor: Principal, caseId: string, action: "investigate" | "close", raw: unknown) {
   parse(opaqueId, caseId); const closing = action === "close" ? parse(closeSchema, raw) : null;
   const input = closing ?? parse(reasonSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const c = await lockedCase(tx, caseId); requireOpenCase(c.status);
     if (action === "investigate" && c.status !== "OPEN") throw new AppError("CONFLICT");
@@ -160,9 +159,10 @@ export async function progressCase(db: PrismaClient, actor: Principal, caseId: s
 }
 export async function actOnCase(db: PrismaClient, actor: Principal, caseId: string, action: ModerationAction, raw: unknown) {
   parse(opaqueId, caseId); const input = parse(actionSchema, raw), type = actionTarget(action);
+  if (type !== "USER") parse(opaqueId, input.targetId);
   const start = Date.now(), requestId = crypto.randomUUID();
   try {
-    const result = await db.$transaction(async (tx) => {
+    const result = await transaction(db, async (tx) => {
       // Sorting prevents two admins restricting one another in opposite order.
       const ids = [...new Set(type === "USER" ? [actor.id, input.targetId] : [actor.id])].sort();
       for (const id of ids) await tx.$queryRaw`SELECT id FROM "User" WHERE id=${id} FOR NO KEY UPDATE`;
@@ -194,7 +194,7 @@ export async function actOnCase(db: PrismaClient, actor: Principal, caseId: stri
 }
 export async function caseDetail(db: PrismaClient, actor: Principal, caseId: string) {
   parse(opaqueId, caseId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const c = await tx.moderationCase.findUnique({ where: { id: caseId } });
     if (!c) throw new AppError("NOT_FOUND");
@@ -216,7 +216,7 @@ export async function caseDetail(db: PrismaClient, actor: Principal, caseId: str
 }
 export async function caseTimeline(db: PrismaClient, actor: Principal, caseId: string, raw: unknown) {
   parse(opaqueId, caseId); const q = parse(timelineSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     if (!await tx.moderationCase.findUnique({ where: { id: caseId }, select: { id: true } })) throw new AppError("NOT_FOUND");
     const cursor = q.cursor ? await tx.auditEvent.findFirst({ where: { caseId, id: q.cursor }, select: { id: true, createdAt: true } }) : null;
@@ -228,9 +228,10 @@ export async function caseTimeline(db: PrismaClient, actor: Principal, caseId: s
 }
 export async function caseReports(db: PrismaClient, actor: Principal, caseId: string, raw: unknown) {
   parse(opaqueId, caseId); const q = parse(timelineSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     if (!await tx.moderationCase.findUnique({ where: { id: caseId }, select: { id: true } })) throw new AppError("NOT_FOUND");
+    if (q.cursor && !await tx.caseReport.findUnique({ where: { caseId_reportId: { caseId, reportId: q.cursor } }, select: { reportId: true } })) throw new AppError("VALIDATION");
     const rows = await tx.report.findMany({ where: { cases: { some: { caseId } }, ...(q.cursor ? { id: { gt: q.cursor } } : {}) },
       select: { id: true, reasonCode: true, details: true, status: true, createdAt: true, reporter: { select: { id: true, name: true } } }, orderBy: { id: "asc" }, take: q.limit + 1 });
     const page = rows.slice(0, q.limit);
@@ -239,7 +240,7 @@ export async function caseReports(db: PrismaClient, actor: Principal, caseId: st
 }
 export async function inspectCase(db: PrismaClient, actor: Principal, caseId: string, raw: unknown) {
   parse(opaqueId, caseId); const input = parse(reasonSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "ADMIN", true, true);
     const c = await lockedCase(tx, caseId);
     // Case-bound POST investigation: reason + immutable read audit, one resource.

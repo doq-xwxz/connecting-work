@@ -1,3 +1,4 @@
+import { plainText } from "@/shared/validation/text";
 import { z } from "zod";
 import { availabilitySchema, citySchema, levels, opaqueId, pageSchema, preferences, workerSchema, workModes } from "@/modules/profiles/contracts";
 
@@ -11,7 +12,7 @@ export const moneySchema = z.string().refine((value) => /^(0|[1-9][0-9]{0,12})$/
 const dateOnly = z.iso.date().refine((value) => value >= "2000-01-01" && value <= "2100-12-31");
 const skillSchema = z.strictObject({ skillId: opaqueId, required: z.boolean(), minimumLevel: z.enum(levels) });
 export const termShape = {
-  title: z.string().trim().max(160), description: z.string().trim().max(6000), category: z.enum(categories).nullable(),
+  title: plainText(160), description: plainText(6000), category: z.enum(categories).nullable(),
   employmentType: z.enum(preferences).nullable(), workMode: z.enum(workModes).nullable(), city: citySchema,
   compensationType: z.enum(compensationTypes).nullable(), compensationMin: moneySchema.nullable(), compensationMax: moneySchema.nullable(),
   currency: z.literal("VND"), headcount: z.number().int().min(1).max(1000),
@@ -19,7 +20,7 @@ export const termShape = {
   skills: z.array(skillSchema).max(20).refine((items) => new Set(items.map((item) => item.skillId)).size === items.length),
   schedule: availabilitySchema,
 };
-function consistentTerms(input: z.infer<z.ZodObject<typeof termShape>>) {
+export function consistentTerms(input: z.infer<z.ZodObject<typeof termShape>>) {
   const pair = (input.compensationMin === null) === (input.compensationMax === null);
   return pair && (input.compensationMin === null || (input.compensationType !== null && moneySchema.safeParse(input.compensationMin).success
     && moneySchema.safeParse(input.compensationMax).success && BigInt(input.compensationMin) <= BigInt(input.compensationMax!)))

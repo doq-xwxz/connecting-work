@@ -1,3 +1,4 @@
+import { plainText } from "@/shared/validation/text";
 import { z } from "zod";
 import { AppError } from "@/shared/errors/app-error";
 
@@ -18,7 +19,7 @@ export const availabilitySchema = z.array(z.strictObject({ weekday: z.number().i
   .max(14).refine((slots) => slots.every((slot) => slot.startHour < slot.endHour) && slots.every((slot, index) =>
     slots.every((other, otherIndex) => index === otherIndex || slot.weekday !== other.weekday || slot.endHour <= other.startHour || other.endHour <= slot.startHour)));
 export const workerSchema = z.strictObject({
-  headline: z.string().trim().max(160), bio: z.string().trim().max(1000).default(""),
+  headline: plainText(160), bio: plainText(1000).default(""),
   city: citySchema, timezone: timezone.default("Asia/Ho_Chi_Minh"),
   preferences: z.array(z.enum(preferences)).max(7).refine(unique),
   workModes: z.array(z.enum(workModes)).max(3).refine(unique),
@@ -27,11 +28,12 @@ export const workerSchema = z.strictObject({
   availability: availabilitySchema,
 });
 export const employerSchema = z.strictObject({ type: z.enum(employerTypes),
-  description: z.string().trim().max(1000).default(""), city: citySchema });
+  description: plainText(1000).default(""), city: citySchema });
 export const discoveryOptInSchema = z.strictObject({ discoverable: z.boolean() });
 export const pageSchema = z.strictObject({ limit: z.coerce.number().int().min(1).max(30).default(12),
   cursor: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/).optional() });
 export const discoverySchema = pageSchema.extend({ city: citySchema.optional(),
+  cursor: opaqueId.optional(),
   skillId: z.preprocess((value) => value === "" ? undefined : value, opaqueId.optional()),
   preference: z.preprocess((value) => value === "" ? undefined : value, z.enum(preferences).optional()) });
 const safeInputFields = new Set(["headline", "bio", "city", "timezone", "preferences", "workModes", "skills", "availability",

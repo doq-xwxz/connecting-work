@@ -83,6 +83,10 @@ describe("strict inputs and snapshot projection", () => {
     expect(snapshotSchema.safeParse({ ...snapshot, schemaVersion: 2 }).success).toBe(false);
     expect(acceptedSnapshotSchema.safeParse({ schemaVersion: 1, offer: snapshot, worker: { displayName: "Name", headline: "Headline" }, acceptedAt: now.toISOString() }).success).toBe(true);
   });
+  it("keeps version 1 historical text readable without new ingress normalization", () => {
+    const description = "Legacy\r\nwording\u0085";
+    expect(snapshotSchema.parse({ ...snapshot, job: { ...snapshot.job, description } }).job.description).toBe(description.trim());
+  });
   it("allowlists DTO terms and strips owner identity provenance", () => {
     const offer = offerDto({ id: randomUUID(), revision: 1, status: "PENDING", terms: snapshot, createdAt: now, expiresAt: null, resolvedAt: null });
     expect(JSON.stringify(offer)).not.toContain(snapshot.ownerId); expect(JSON.stringify(offer)).not.toContain("ownerId");

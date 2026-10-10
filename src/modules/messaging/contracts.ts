@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { AppError } from "@/shared/errors/app-error";
+import { validPlainText } from "@/shared/validation/text";
 
 export type Side = "WORKER" | "EMPLOYER";
 export const bodySchema = z.string().max(4000).transform((s) => s.replace(/\r\n?/g, "\n"))
-  .refine((s) => s.isWellFormed() && /[^\p{White_Space}\p{Cf}]/u.test(s) && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(s));
+  .refine((s) => s.length > 0 && validPlainText(s));
 export const sendSchema = z.strictObject({ body: bodySchema, creationKey: z.uuid() });
 export const readSchema = z.strictObject({ messageId: z.uuid() });
 export const blockSchema = z.strictObject({ messageId: z.uuid(), blocked: z.boolean() });

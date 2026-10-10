@@ -70,4 +70,7 @@ jobs:
       - run: pnpm test:messaging
       - run: pnpm test:reviews
       - run: pnpm test:moderation
+      - run: pnpm test:hardening
       - run: pnpm test:http
+      - run: pnpm build
+      - run: pnpm test:production

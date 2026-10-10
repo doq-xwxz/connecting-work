@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 import { AppError } from "../src/shared/errors/app-error";
 import type { Principal, Role } from "../src/modules/auth/policy";
 import { saveEmployer } from "../src/modules/profiles/service";
@@ -16,7 +16,7 @@ nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "disposable") {
   console.error("BLOCKED: jobs integration needs TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable."); process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const tag = `phase4-${randomUUID()}`;
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL, max: 12, application_name: tag }) });
   const users: string[] = [], companies: string[] = [], testSkills: string[] = [];
@@ -214,7 +214,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
       await db.job.deleteMany({ where: { id: { in: ids } } });
       await db.companyMember.deleteMany({ where: { companyId: { in: companies } } }); await db.company.deleteMany({ where: { id: { in: companies } } });
       await db.employerProfile.deleteMany({ where: { userId: { in: users } } }); await db.userRole.deleteMany({ where: { userId: { in: users } } });
-      await db.user.deleteMany({ where: { id: { in: users } } }); await db.skill.deleteMany({ where: { id: { in: testSkills } } });
+      await db.rateLimit.deleteMany({ where: { key: { in: users.map((id) => `job-draft:user:${id}`) } } }); await db.user.deleteMany({ where: { id: { in: users } } }); await db.skill.deleteMany({ where: { id: { in: testSkills } } });
     } catch { console.error("FAIL: jobs fixture cleanup; details suppressed."); process.exitCode = 1; }
     try { await db.$disconnect(); } catch { process.exitCode = 1; }
   }

@@ -1,5 +1,7 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { requireRate } from "@/shared/security/rate-limit";
+import { rateRules } from "@/shared/security/rate-config";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
 import { currentActor } from "@/modules/auth/transaction";
@@ -67,7 +69,7 @@ async function summary(tx: Tx, actor: Principal, side: Side, id: string, context
 }
 export async function openConversation(db: PrismaClient, actor: Principal, side: Side, applicationId: string, raw: unknown) {
   parse(opaqueId, applicationId); parse(pageSchema.pick({}).strict(), raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await identity(tx, actor, side);
     const context = await lockChatApplication(tx, actor, side, applicationId);
     const previous = await tx.conversation.findUnique({ where: { applicationId }, select: { id: true } });
@@ -80,11 +82,11 @@ export async function openConversation(db: PrismaClient, actor: Principal, side:
 }
 export async function getConversation(db: PrismaClient, actor: Principal, side: Side, id: string) {
   parse(opaqueId, id);
-  return db.$transaction(async (tx) => { const { user, context } = await scoped(tx, actor, side, id); return summary(tx, actor, side, id, context, user.status); });
+  return transaction(db, async (tx) => { const { user, context } = await scoped(tx, actor, side, id); return summary(tx, actor, side, id, context, user.status); });
 }
 export async function listConversations(db: PrismaClient, actor: Principal, side: Side, raw: unknown) {
   const query = parse(pageSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await identity(tx, actor, side);
     const profile = side === "EMPLOYER" ? await requireEmployerProfile(tx, actor.id) : await requireWorkerProfile(tx, actor.id);
     const where = scopeWhere(actor.id, side);
@@ -113,7 +115,7 @@ export async function listConversations(db: PrismaClient, actor: Principal, side
 }
 export async function listMessages(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
   parse(opaqueId, id); const query = parse(messagesSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await scoped(tx, actor, side, id);
     const cursorId = query.before ?? query.after;
     const cursor = cursorId ? await tx.message.findFirst({ where: { id: cursorId, conversationId: id }, select: { id: true, createdAt: true } }) : null;
@@ -128,24 +130,19 @@ export async function listMessages(db: PrismaClient, actor: Principal, side: Sid
     return { items: page.map((row) => messageDto(row, actor.id)), hasMore: rows.length > query.limit, oldest: page[0]?.id ?? null, newest: page.at(-1)?.id ?? query.after ?? null };
   });
 }
-async function budget(tx: Tx, userId: string, conversationId: string, now: Date) {
-  const time = BigInt(now.getTime());
-  for (const [key, limit] of [[`message:user:${userId}`, 60], [`message:conversation:${userId}:${conversationId}`, 30]] as const) {
-    const row = await tx.rateLimit.findUnique({ where: { key } });
-    const fresh = !row || time - row.lastRequest >= 60_000n;
-    if (!fresh && row.count >= limit) throw new AppError("RATE_LIMITED");
-    await tx.rateLimit.upsert({ where: { key }, create: { id: randomUUID(), key, count: 1, lastRequest: time }, update: { count: fresh ? 1 : row.count + 1, lastRequest: fresh ? time : row.lastRequest } });
-  }
+async function budget(tx: Tx, userId: string, conversationId: string) {
+  await requireRate(tx, `message:user:${userId}`, rateRules.messageUser);
+  await requireRate(tx, `message:conversation:${userId}:${conversationId}`, rateRules.messageConversation);
 }
 export async function sendMessage(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
   parse(opaqueId, id); const input = parse(sendSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const { user, context } = await scoped(tx, actor, side, id);
     if (await permission(tx, context, user.status, side)) throw new AppError("FORBIDDEN");
     const previous = await tx.message.findUnique({ where: { conversationId_senderUserId_creationKey: { conversationId: id, senderUserId: actor.id, creationKey: input.creationKey } }, select: messageSelect });
     if (previous) { requireSameBody(previous.body, input.body); return messageDto(previous, actor.id); }
     const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AT TIME ZONE 'UTC' AS now`;
-    await budget(tx, actor.id, id, clock.now);
+    await budget(tx, actor.id, id);
     // Millisecond strictly increasing conversation time prevents a later inserted
     // random UUID from sorting behind an existing cursor in the same DB millisecond.
     const last = await tx.conversation.findUniqueOrThrow({ where: { id }, select: { lastMessageAt: true } });
@@ -173,11 +170,11 @@ async function mark(tx: Tx, actorId: string, id: string, messageId: string) {
 }
 export async function markConversationRead(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
   parse(opaqueId, id); const { messageId } = parse(readSchema, raw);
-  return db.$transaction(async (tx) => { await scoped(tx, actor, side, id); return mark(tx, actor.id, id, messageId); });
+  return transaction(db, async (tx) => { await scoped(tx, actor, side, id); return mark(tx, actor.id, id, messageId); });
 }
 export async function setBlock(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
   parse(opaqueId, id); const input = parse(blockSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const { context } = await scoped(tx, actor, side, id);
     const message = await tx.message.findFirst({ where: { id: input.messageId, conversationId: id, senderSide: side === "WORKER" ? "EMPLOYER" : "WORKER" }, select: { senderUserId: true } });
     if (!message || message.senderUserId === actor.id || (side === "EMPLOYER" && message.senderUserId !== context.worker.userId)) throw new AppError("NOT_FOUND");
@@ -189,7 +186,7 @@ export async function setBlock(db: PrismaClient, actor: Principal, side: Side, i
 }
 export async function listNotifications(db: PrismaClient, actor: Principal, raw: unknown) {
   const query = parse(pageSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await tx.user.findUnique({ where: { id: actor.id }, select: { status: true, roles: { select: { role: true } } } });
     if (!user || user.status === "BANNED") throw new AppError("FORBIDDEN");
     const allowed: Prisma.ConversationWhereInput[] = [];
@@ -203,7 +200,7 @@ export async function listNotifications(db: PrismaClient, actor: Principal, raw:
 }
 export async function readNotification(db: PrismaClient, actor: Principal, id: string, raw: unknown) {
   parse(opaqueId, id); const { messageId } = parse(readSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const notification = await tx.notification.findFirst({ where: { id, userId: actor.id }, select: { conversationId: true, conversation: { select: { worker: { select: { userId: true } } } } } });
     if (!notification) throw new AppError("NOT_FOUND");
     const side = notification.conversation.worker.userId === actor.id ? "WORKER" : "EMPLOYER";

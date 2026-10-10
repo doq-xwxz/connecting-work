@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -13,6 +14,8 @@ import { inputFromRow, jobSelect, managedJobDto, publicJobDto } from "./projecti
 import { hiringEditContext, finishRecruitment } from "@/modules/hiring/job-query";
 import { searchPublicJobs } from "./search";
 import { requireRecruitingVisible, visibleRecruitingWhere } from "./moderation";
+import { requireRate } from "@/shared/security/rate-limit";
+import { rateRules } from "@/shared/security/rate-config";
 
 async function lockOwner(tx: Prisma.TransactionClient, actor: Principal, profileId: string, companyId: string | null) {
   if (companyId) {
@@ -57,12 +60,13 @@ async function createDraft(tx: Prisma.TransactionClient, actor: Principal, profi
     if (changes.material.length || changes.nonMaterial.length) throw new AppError("CONFLICT");
     return previous;
   }
+  await requireRate(tx, `job-draft:user:${actor.id}`, rateRules.jobDraftUser);
   return tx.job.create({ data: { ...scalarData(input), companyId, employerProfileId: profileId, createdByUserId: actor.id, creationKey: key,
     skills: { create: input.skills }, schedule: { create: input.schedule } }, select: jobSelect });
 }
 export async function createJob(db: PrismaClient, actor: Principal, raw: unknown) {
   const { companyId, creationKey, ...input } = parse(createJobSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true, true);
     const profile = await requireEmployerProfile(tx, actor.id);
     await lockOwner(tx, actor, profile.id, companyId);
@@ -72,7 +76,7 @@ export async function createJob(db: PrismaClient, actor: Principal, raw: unknown
 }
 export async function getManagedJob(db: PrismaClient, actor: Principal, id: string) {
   parse(opaqueId, id);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER"); const profile = await requireEmployerProfile(tx, actor.id);
     const row = await managedRow(tx, actor, profile.id, id, false);
     return managedJobDto(row, await quotaFor(tx, row));
@@ -80,7 +84,7 @@ export async function getManagedJob(db: PrismaClient, actor: Principal, id: stri
 }
 export async function editJob(db: PrismaClient, actor: Principal, id: string, raw: unknown) {
   parse(opaqueId, id); const { expectedVersion, ...input } = parse(updateJobSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "EMPLOYER", true, true); const profile = await requireEmployerProfile(tx, actor.id);
     const row = await managedRow(tx, actor, profile.id, id, true);
     if (row.version !== expectedVersion || !["DRAFT", "PUBLISHED", "PAUSED"].includes(row.status)) throw new AppError("CONFLICT");
@@ -95,7 +99,7 @@ export async function editJob(db: PrismaClient, actor: Principal, id: string, ra
 }
 export async function transitionJob(db: PrismaClient, actor: Principal, id: string, action: JobAction, raw: unknown) {
   parse(opaqueId, id); const { expectedVersion } = parse(transitionSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "EMPLOYER", !permitsRestrictedActor(action), true, permitsRestrictedActor(action) ? "reduce-job-exposure" : undefined);
     const profile = await requireEmployerProfile(tx, actor.id); const row = await managedRow(tx, actor, profile.id, id, true);
     if (row.version !== expectedVersion) throw new AppError("CONFLICT");
@@ -116,7 +120,7 @@ export async function transitionJob(db: PrismaClient, actor: Principal, id: stri
 }
 export async function duplicateJob(db: PrismaClient, actor: Principal, id: string, raw: unknown) {
   parse(opaqueId, id); const { creationKey } = parse(duplicateSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true, true); const profile = await requireEmployerProfile(tx, actor.id);
     const source = await managedRow(tx, actor, profile.id, id, true);
     const row = await createDraft(tx, actor, profile.id, source.companyId, creationKey, duplicateTerms(inputFromRow(source)));
@@ -126,7 +130,7 @@ export async function duplicateJob(db: PrismaClient, actor: Principal, id: strin
 }
 export async function listManagedJobs(db: PrismaClient, actor: Principal, raw: unknown) {
   const query = parse(managementQuerySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER"); const profile = await requireEmployerProfile(tx, actor.id);
     if (query.companyId) await requireCompanyMembership(tx, actor.id, query.companyId);
     const where: Prisma.JobWhereInput = { OR: [{ companyId: null, employerProfileId: profile.id }, { company: { members: { some: { userId: actor.id } } } }],

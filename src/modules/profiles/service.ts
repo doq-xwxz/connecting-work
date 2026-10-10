@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -27,14 +28,14 @@ export function discoveryWorkerDto(row: WorkerRow): WorkerDiscovery {
     skills: row.skills.map((item) => ({ name: item.skill.name, level: item.level })), availability: availabilityIndicator(row.availability) };
 }
 export async function listSkills(db: PrismaClient, actor: Principal, role: "WORKER" | "EMPLOYER" = "WORKER") {
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, role);
     if (role === "EMPLOYER") await requireEmployerProfile(tx, actor.id);
     return tx.skill.findMany({ where: { active: true }, select: { id: true, name: true, category: true }, orderBy: [{ category: "asc" }, { slug: "asc" }], take: 100 });
   });
 }
 export async function getWorker(db: PrismaClient, actor: Principal) {
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "WORKER");
     const row = await tx.workerProfile.findUnique({ where: { userId: actor.id }, select: workerSelect });
     return row ? selfWorkerDto(row) : null;
@@ -43,7 +44,7 @@ export async function getWorker(db: PrismaClient, actor: Principal) {
 export async function saveWorker(db: PrismaClient, actor: Principal, raw: unknown, targetId?: string) {
   const input = parse(workerSchema, raw);
   if (targetId) parse(opaqueId, targetId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "WORKER", true, true);
     const existing = await tx.workerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
     if (targetId && existing?.id !== targetId) throw new AppError("NOT_FOUND");
@@ -67,7 +68,7 @@ export async function saveWorker(db: PrismaClient, actor: Principal, raw: unknow
 export async function setDiscoverable(db: PrismaClient, actor: Principal, targetId: string, raw: unknown) {
   parse(opaqueId, targetId);
   const input = parse(discoveryOptInSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "WORKER", input.discoverable, true, input.discoverable ? undefined : "privacy-opt-out");
     const own = await requireWorkerProfile(tx, actor.id);
     if (own.id !== targetId) throw new AppError("NOT_FOUND");
@@ -76,7 +77,7 @@ export async function setDiscoverable(db: PrismaClient, actor: Principal, target
   });
 }
 export async function getEmployer(db: PrismaClient, actor: Principal): Promise<EmployerSelf | null> {
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "EMPLOYER");
     const row = await tx.employerProfile.findUnique({ where: { userId: actor.id }, select: { id: true, type: true, description: true, city: true } });
     return row ? { ...row, displayName: user.name } : null;
@@ -85,7 +86,7 @@ export async function getEmployer(db: PrismaClient, actor: Principal): Promise<E
 export async function saveEmployer(db: PrismaClient, actor: Principal, raw: unknown, targetId?: string): Promise<EmployerSelf> {
   const input = parse(employerSchema, raw);
   if (targetId) parse(opaqueId, targetId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "EMPLOYER", true, true);
     const existing = await tx.employerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
     if (targetId && existing?.id !== targetId) throw new AppError("NOT_FOUND");
@@ -99,7 +100,7 @@ export async function saveEmployer(db: PrismaClient, actor: Principal, raw: unkn
 }
 export async function discoverWorkers(db: PrismaClient, actor: Principal, raw: unknown) {
   const query = parse(discoverySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true);
     await requireEmployerProfile(tx, actor.id);
     // No shared cache or detached search index can retain withdrawn opt-in.

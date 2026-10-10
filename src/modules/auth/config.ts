@@ -20,6 +20,8 @@ export function parseAuthEnv(env: Record<string, string | undefined>) {
   if (env.NODE_ENV === "production" && !origin.startsWith("https://")) {
     throw new Error("Production auth requires HTTPS.");
   }
+  const host = new URL(origin).hostname;
+  if (env.NODE_ENV === "production" && (host === "localhost" || host.endsWith(".localhost") || host === "0.0.0.0" || /^127\./.test(host) || host === "[::1]")) throw new Error("Production auth requires a public application origin.");
   return { origin, secret: result.data.BETTER_AUTH_SECRET, production: env.NODE_ENV === "production" };
 }
 

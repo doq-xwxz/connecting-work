@@ -7,7 +7,7 @@ import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 import { cleanupModerationFixtures } from "./moderation-test-cleanup";
 
 nextEnv.loadEnvConfig(process.cwd());
@@ -15,7 +15,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   console.error("BLOCKED: HTTP auth verification needs TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable.");
   process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL, max: 5 }) });
   const messages: { to: string[]; text: string }[] = [];
   const mailSecret = randomBytes(32).toString("hex");
@@ -112,6 +112,32 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.ok(cookie);
     assert.ok(login.headers.getSetCookie().some((value) => /httponly/i.test(value) && /samesite=lax/i.test(value)));
     assert.equal(await db.session.count({ where: { userId } }), 1);
+    stage = "Phase 10 transport hardening";
+    for (const [path, body] of [["/api/account/roles", { role: "WORKER" }], ["/api/marketplace/reports", {}], ["/api/admin/cases", {}]] as const) {
+      for (const attempted of [undefined, "https://evil.example", `${origin}/`, "null"]) {
+        const headers: Record<string,string> = { cookie, "content-type": "application/json" };
+        if (attempted !== undefined) headers.origin = attempted;
+        const response = await fetch(`${origin}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
+        assert.equal(response.status,403); const error=await response.json();
+        assert.deepEqual(Object.keys(error).sort(),["code","message","requestId","status"].sort()); assert.equal(error.code,"FORBIDDEN");
+        assert.match(error.requestId,/^[a-f0-9-]{36}$/); assert(!JSON.stringify(error).includes("stack"));
+        assert.match(response.headers.get("cache-control")!,/no-store/);
+      }
+    }
+    const wrongType=await fetch(`${origin}/api/account/roles`,{method:"POST",headers:{origin,cookie,"content-type":"application/jsonp"},body:'{"role":"WORKER"}'});
+    assert.equal(wrongType.status,400);
+    for(const path of ["/api/account/roles","/api/marketplace/reports","/api/admin/cases"]) {
+      const huge=await fetch(`${origin}${path}`,{method:"POST",headers:{origin,cookie,"content-type":"application/json"},body:JSON.stringify({x:"a".repeat(17000)})}); assert.equal(huge.status,400);
+    }
+    for(const redirect of ["//evil.example","/%2f%2fevil.example","javascript:alert(1)","/\\evil.example"]) {
+      assert.equal((await request("/api/auth/sign-in/email",{email,password,callbackURL:redirect})).status,400);
+    }
+    const headersResponse=await request("/account",undefined,cookie);
+    assert.match(headersResponse.headers.get("content-security-policy")!,/frame-ancestors 'none'/);
+    assert.equal(headersResponse.headers.get("permissions-policy"),"camera=(), microphone=(), geolocation=(), payment=()");
+    assert.match(headersResponse.headers.get("cache-control")!,/no-store/);
+    assert.equal(headersResponse.headers.get("strict-transport-security"),null);
+    stage = "login and protected account";
     const account = await request("/account", undefined, cookie);
     assert.equal(account.status, 200);
     assert.ok((await account.text()).includes(email));
@@ -633,13 +659,14 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
         await db.employerProfile.deleteMany({ where: { userId } });
         await db.verification.deleteMany({ where: { value: userId } });
         await db.userRole.deleteMany({ where: { userId } });
+        await db.rateLimit.deleteMany({ where: { key: `job-draft:user:${userId}` } });
         await db.user.delete({ where: { id: userId } });
       }
       await db.workerProfile.deleteMany({ where: { userId: { in: hiringUsers } } });
       await db.employerProfile.deleteMany({ where: { userId: { in: hiringUsers } } });
       await db.verification.deleteMany({ where: { value: { in: hiringUsers } } });
       await db.userRole.deleteMany({ where: { userId: { in: hiringUsers } } });
-      await db.user.deleteMany({ where: { id: { in: hiringUsers } } });
+      await db.rateLimit.deleteMany({ where: { key: { in: hiringUsers.map((id) => `job-draft:user:${id}`) } } }); await db.user.deleteMany({ where: { id: { in: hiringUsers } } });
       await db.rateLimit.deleteMany({ where: { OR: ratePrefixes.map((prefix) => ({ key: { startsWith: prefix } })) } });
       await db.$disconnect();
     } catch { console.error("FAIL: HTTP fixture cleanup failed; sensitive diagnostics suppressed."); process.exitCode = 1; }

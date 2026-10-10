@@ -115,3 +115,55 @@ IDOR/privilege escalation: scoped repository+DTO, role grant isolation, negative
 No sensitive logs/analytics; PostHog/Sentry integrations Phase 11 with PII scrub. Secret rotation, incident contact, access owner, DB backup/TLS/region and operational response D8 before production. Legal retention/anonymization/export D7, not Foundation blocker; transactional/audit histories not destroyed by naive cascades. Reporting contact must be supplied by operator, not invented. Foundation is not a completed security review for the future marketplace.
 
 Package scripts use verifyDepsBeforeRun=error to fail on stale dependencies rather than auto-install during checks. pnpm-workspace.yaml permits build scripts only for Prisma engines/CLI and esbuild; minimum-release-age exceptions are exact chosen stable Next versions, not wildcard allowances. Lockfile supply-chain policy and peer checks passed. Logger formatter is pure/unit-tested separately from its server-only production entrypoint.
+
+## Phase 10 authoritative hardening and status matrix
+
+This section updates earlier historical/deferred descriptions only for the controls implemented in PHASE_10. No new product role, moderation power, retention duration or deployment is introduced.
+
+| Existing action | ACTIVE | SUSPENDED | BANNED |
+|---|---|---|---|
+| Auth/account, logout/reset; fresh role activation | Auth/account allowed; roles require ACTIVE | Auth/account allowed; role activation denied | Auth/account allowed; role activation denied |
+| Profile writes, discovery opt-in, new recruiting, apply/new offer/accept, new reviews | Relevant role/current ownership/state required | Denied | Denied |
+| Own discovery opt-out | Allowed | Allowed | Allowed |
+| Own Job pause/close/cancel/complete | Current owner and lifecycle/obligations required | Same scoped exposure-reducing actions | Same scoped exposure-reducing actions |
+| Withdraw / decline / revoke | Relevant scope/state required | Existing scoped recruitment cleanup allowed | Denied |
+| Start/request/confirm/cancel Engagement | Current party, state and obligations required | Existing active obligations only | Denied; banned exception remains deferred |
+| Private history / conversation reads | Current entitlement required | Scoped existing history; active-work exceptions for protected contexts | Normal marketplace access denied |
+| Send messages | Current Application entitlement, block/state/rate checks | Existing active Engagement only | Denied |
+| Create report | Visible/scoped target and budget required | Scoped active-obligation Message/Engagement targets only | Denied |
+| Admin cases/actions | Fresh ACTIVE ADMIN, exact case binding and reason | Denied | Denied |
+
+Worker and Employer coexist but never confer each other's access; ADMIN does not grant discovery or ordinary hiring powers. Company membership is read fresh, creator provenance is not ownership, and hidden resources remain excluded from normal discovery/reputation. Anonymous public pages remain public; public visibility is not a private entitlement. Existing regression suites cover departed managers, stale sessions/ADMIN, foreign identifiers and status races. Phase 10 adds real dual-role/foreign-Application/status tests and cross-case report cursor rejection.
+
+Every write adapter requires the exact configured Origin, including account, marketplace and admin. Missing, null, differently serialized or foreign origins fail closed; no Referer fallback. Local redirects reject schemes, protocol-relative/backslash/control/encoded separators, malformed escapes and invalid local paths. Auth mail fragments and POST confirmation remain unchanged. Hiring GET reads no longer persist offer expiry; actions retain atomic expiry normalization. Better Auth may maintain its own session housekeeping.
+
+Request JSON accepts the exact application/json MIME (parameters allowed), a bounded streamed 16KiB body, valid UTF-8 and bounded Content-Length. Strict Zod contracts reject unknown body/query keys, malformed enums/dates/money/IDs/cursors and overlong input before domain work. Singleton routes reject extra query keys. Case-report cursors must belong to the current case. Safe errors contain only allowlisted code/message/field paths and request ID, never raw Zod input, stack, SQL, cause or provider payload.
+
+Shared plain text rejects malformed UTF-16, C0 controls except tab/LF/CR, C1 controls, and nonempty invisible-only content. New text ingress normalizes CRLF/CR; message spacing is preserved, other supported fields trim. Vietnamese NFC/NFD and combining marks remain accepted; search retains its deliberate normalization. HTML/event strings remain text rendered through React escaping, with no application dangerouslySetInnerHTML or user-controlled URL fetching. No rich-text sanitizer, upload or SSRF-capable feature was added. Historical version 1 work terms retain their original text contract.
+
+Global CSP limits sources to self, disables objects/framing and constrains form/base URLs. Production excludes unsafe-eval; development permits it and websocket sources for Next. Next inline script/style bootstrap explicitly requires unsafe-inline in this implementation, so this is not a strict nonce CSP and does not independently neutralize every inline injection. Permissions-Policy disables camera/microphone/geolocation/payment; nosniff, DENY framing and referrer controls remain. Account, admin, reports, Worker/Employer pages and sensitive APIs use private/no-store and no-referrer. HSTS is off by default and emitted only when building production with ENABLE_HSTS=1 and HTTPS APP_URL; max-age=31536000, no preload/includeSubDomains. Rebuild after changing this build-time policy and verify the host's TLS/header behavior.
+
+| Persisted budget | Window / limit | Identity |
+|---|---|---|
+| Auth signup/signin | 60s / 5 | Provider-normalized IP/path |
+| Auth reset/resend | 60s / 3 | Provider-normalized IP/path |
+| Auth base/default special rules | Provider retained (base 60s / 100) | Provider key |
+| Send message | 60s / 60 and 30 | User and user/conversation |
+| Create report | 1h / 10 | User |
+| Create/duplicate draft | 1h / 60 | User |
+
+Rates are centralized and atomic across instances. Replays/deduplicated reports/messages/drafts return before charging; unauthorized requests do not allocate business keys. Draft creation is budgeted because active-job quota alone cannot bound draft churn. Apply/review lifetime uniqueness, pending-offer state and publish quota remain their existing constraints; no speculative per-read/global throttle is added. PostgreSQL storage is authoritative. Auth uses provider sliding reset semantics, business budgets fixed windows. The confirmed cross-namespace pruning finding is fixed: an expired auth row can no longer delete an hour-long report counter. Namespace-aware managed pruning and trusted reverse-proxy IP verification remain operations; never trust arbitrary forwarded headers at a public origin.
+
+Expected PG/Prisma constraint and confirmed transaction conflicts map to CONFLICT without inspecting database messages. Unknown errors/timeouts map to INTERNAL. Whole-transaction retries are bounded and only for confirmed serialization/deadlock aborts; external auth/email calls and ambiguous commits do not retry. Runtime logs keep static actions/opaque IDs; business audit remains immutable and transaction-bound. No content/token/PII logging, analytics or production fixture flag was added. Voluntary personal data typed into plain text is not automatically redacted; legal retention/anonymization remains D7.
+
+### Dependency audit reviewed 2026-10-10
+
+Frozen install and lockfile are preserved; no dependency upgrade or blanket override was made. pnpm audit exits 1 with 3 high and 1 moderate, not a clean result:
+
+- deepmerge-ts 7.1.5: high recursive-object stack exhaustion, fixed in major 8.0.0 ([GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx)). Observed through Prisma configuration tooling; bounded HTTP JSON cannot encode the required cyclic object graph. Defer upstream-compatible upgrade rather than force a major transitive override.
+- mysql2 3.15.3: high auth downgrade ([GHSA-3f6p-5ww8-9rcr](https://github.com/advisories/GHSA-3f6p-5ww8-9rcr)) and moderate compressed-protocol inflation ([GHSA-rgwj-5xj2-c3m3](https://github.com/advisories/GHSA-rgwj-5xj2-c3m3)). Transitive multi-driver dependency; this application uses PostgreSQL only and opens no MySQL connection. No affected protocol is exposed; revisit upstream patch before enabling MySQL.
+- braces 3.0.3: high deeply nested glob exhaustion, no published fix in the audit ([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)). Development lint/glob tooling receives repository-owned patterns, not marketplace text.
+
+Reachability conclusions are implementation inferences, not a guarantee that the packages are defect-free. No known reachable high/critical path was found in this review. Node/pnpm pins, restrictive build-script policy, frozen lockfile, readonly CI permissions and disabled persisted checkout credentials remain. Provider email credentials and secrets stay server-only; the email endpoint is fixed and no arbitrary URL is fetched.
+
+Production rejects loopback auth origins even over HTTPS. Local development uses explicit local origin/isolated DB; CI uses job-local disposable DB/fake mail; preview requires its own HTTPS origin, isolated DB and secrets; production requires managed TLS PostgreSQL, explicit HTTPS origin, strong secret, configured sender and reviewed trusted proxy behavior. Destructive test guard and production smoke are documented in DATABASE. No production URL, real mail, provider secret or deployment was used for this review.

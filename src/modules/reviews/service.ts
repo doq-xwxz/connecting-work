@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import type { Prisma, PrismaClient, Review } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -23,7 +24,7 @@ function reviewDto(row: Review, terms: unknown, completedAt: Date | null) {
 }
 export async function submitReview(db: PrismaClient, actor: Principal, side: Side, engagementId: string, raw: unknown) {
   parse(opaqueId, engagementId); const input = parse(reviewSchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, side, true, true);
     const engagement = await lockReviewEngagement(tx, actor, side, engagementId);
     if (engagement.status !== "COMPLETED") throw new AppError("CONFLICT");
@@ -42,7 +43,7 @@ export async function submitReview(db: PrismaClient, actor: Principal, side: Sid
 }
 export async function getEngagementReviews(db: PrismaClient, actor: Principal, side: Side, engagementId: string) {
   parse(opaqueId, engagementId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, side, false, true);
     if (user.status === "BANNED") throw new AppError("FORBIDDEN");
     const e = await lockReviewEngagement(tx, actor, side, engagementId);
@@ -64,7 +65,7 @@ async function reviewList(tx: Prisma.TransactionClient, where: Prisma.ReviewWher
 }
 export async function ownerReputationForPublicJob(db: PrismaClient, jobId: string) {
   parse(opaqueId, jobId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const job = await tx.job.findFirst({ where: { AND: [{ id: jobId, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: { companyId: true, employerProfileId: true } });
     if (!job) throw new AppError("NOT_FOUND");
     const facts = await getOwnerReputationFacts(tx, job);
@@ -73,7 +74,7 @@ export async function ownerReputationForPublicJob(db: PrismaClient, jobId: strin
 }
 export async function ownerReviewsForJob(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
   parse(opaqueId, jobId); parse(reviewQuerySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", false, true);
     if (user.status !== "ACTIVE") throw new AppError("FORBIDDEN");
     const job = await tx.job.findFirst({ where: { AND: [{ id: jobId, status: "PUBLISHED" }, visibleRecruitingWhere] }, select: { companyId: true, employerProfileId: true } });
@@ -83,7 +84,7 @@ export async function ownerReviewsForJob(db: PrismaClient, actor: Principal, job
 }
 export async function workerReviewsForEmployer(db: PrismaClient, actor: Principal, workerId: string, raw: unknown, applicationId?: string) {
   parse(opaqueId, workerId); parse(reviewQuerySchema, raw); if (applicationId) parse(opaqueId, applicationId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true, true);
     const profile = await requireEmployerProfile(tx, actor.id);
     if (applicationId) {

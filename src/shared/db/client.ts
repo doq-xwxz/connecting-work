@@ -16,6 +16,8 @@ export function getDb(): PrismaClient {
     max: 5,
     connectionTimeoutMillis: 5_000,
     idleTimeoutMillis: 30_000,
+    statement_timeout: 10_000,
+    idle_in_transaction_session_timeout: 20_000,
   });
   const client = new PrismaClient({ adapter });
   if (process.env.NODE_ENV === "production") productionDb = client;

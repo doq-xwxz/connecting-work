@@ -1,6 +1,6 @@
 # Architecture
 
-Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–8 are approved. Phase 9 implements the minimal D5 reports/cases/audited moderation subset in PHASE_9; stop after Phase 9. Earlier phase sections describe their historical behavior, superseded only by the explicit Phase 9 policies below. Phase 10 and deployment are not authorized.
+Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–9 are approved. Phase 10 hardens existing behavior as recorded in PHASE_10. Earlier phase sections are historical, superseded only by explicit later policies below. Stop after Phase 10; Phase 11 and deployment are not authorized.
 
 ## Approved direction
 
@@ -109,3 +109,13 @@ Suspension/block is action+resource policy: deny new activity while preserving r
 Zod is selected for ingress validation by Phase 1 instruction; Vitest for Node unit tests; pnpm exclusively. Exact installed versions and evidence are recorded in PHASE_1.md and lockfile. D8 package/runtime choice resolved for Foundation; provider/ops budget decisions remain deferred. Phase 3 resolves its D1/D3 subset; Phase 4 pre-hiring D2 preparation/coarse Job ads; Phase 5 required hiring lifecycle D2; Phase 6 measured-component D1 scoring/coverage/rounding/recurrence and bounded private recommendation policy. Phase 8 resolves rating/history and review visibility; future pay/experience mappings, remaining D3 contact policies, D4 phone, D5 moderation, D6 invitation/history, D7 retention and D9 analytics remain deferred.
 
 References used for setup: [Next installation](https://nextjs.org/docs/app/getting-started/installation), [Prisma PostgreSQL](https://www.prisma.io/docs/orm/overview/databases/postgresql), [Prisma connections](https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/databases-connections), [shadcn manual setup](https://ui.shadcn.com/docs/installation/manual). New decisions must record status/context/options/consequences, and product changes require explicit review.
+
+## Phase 10 hardening
+
+The owning modules and public DTO boundaries stay intact. Shared pure helpers own plain-text validation, rate configuration, database-code classification and header construction. Server-only helpers own atomic RateLimit SQL and bounded database-only transaction execution; they do not become a new business module. Domain services continue to authorize current actor, role, membership, state and visibility under canonical locks. ADMIN is not an implicit normal-role or discovery bypass.
+
+Domain transactions use a 5s acquisition wait, 10s execution budget (15s for existing matching/moderation work), at most three attempts, and small bounded jitter. Only confirmed PostgreSQL serialization/deadlock aborts (40001/40P01, Prisma P2034) retry the entire callback in a fresh transaction. Connection loss, ambiguous commit, timeout, arbitrary exceptions and auth/email provider calls never automatically retry. Audit, notification and primary state still commit together.
+
+Persisted counters use one parameterized PostgreSQL INSERT/conditional ON CONFLICT statement and database time, including first-key contention. Better Auth retains its provider rules through custom storage, avoiding provider-wide expiry pruning of business namespaces. Marketplace counters use fixed windows; auth preserves provider sliding last-request semantics. GET hiring detail/history now projects overdue pending offers as expired without writing; mutations still normalize under locks. Provider session housekeeping remains provider-owned.
+
+Version 1 Offer/Engagement text decoding retains the historical contract; stricter text normalization applies to new ingress. No immutable historical snapshot, migration, PRODUCT decision or lockfile was rewritten. Global CSP allows Next inline bootstrap explicitly, omits eval in production, and leaves nonce-based strict CSP for a separately designed rendering change. See SECURITY and PHASE_10 for limitations.

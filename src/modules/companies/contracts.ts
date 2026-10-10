@@ -1,3 +1,4 @@
+import { plainText } from "@/shared/validation/text";
 import { z } from "zod";
 import { citySchema, opaqueId } from "@/modules/profiles/contracts";
 import { AppError } from "@/shared/errors/app-error";
@@ -5,8 +6,8 @@ import { AppError } from "@/shared/errors/app-error";
 const website = z.url().max(300).refine((value) => {
   const url = new URL(value); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;
 }).nullable();
-export const companySchema = z.strictObject({ name: z.string().trim().min(2).max(120),
-  description: z.string().trim().max(1000).default(""), city: citySchema, website });
+export const companySchema = z.strictObject({ name: plainText(120).refine((value) => value.length >= 2),
+  description: plainText(1000).default(""), city: citySchema, website });
 export const createCompanySchema = companySchema.extend({ creationKey: opaqueId });
 export const companyRoleSchema = z.enum(["OWNER", "MANAGER"]);
 export function requireCompanyRole(role: "OWNER" | "MANAGER", required: "OWNER" | "MANAGER") {

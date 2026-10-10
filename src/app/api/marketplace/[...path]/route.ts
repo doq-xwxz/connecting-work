@@ -31,6 +31,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       if (key in query) throw new AppError("VALIDATION");
       query[key] = value;
     }
+    if (request.method !== "GET" || (path.length === 1 && ["worker", "skills", "employer"].includes(area)) || (area === "companies" && path.length === 2)) parse(z.strictObject({}), query);
     if (request.method === "GET" && area === "jobs" && path.length <= 2) {
       if (path.length === 2) parse(z.strictObject({}), query);
       return Response.json(path.length === 1 ? await listPublicJobs(db, query) : { ...await getPublicJob(db, id), reputation: await ownerReputationForPublicJob(db, id) }, { headers: { "Cache-Control": "no-store" } });

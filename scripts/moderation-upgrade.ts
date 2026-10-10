@@ -4,13 +4,13 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import pg from "pg";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 
 nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "disposable") {
   console.error("BLOCKED: upgrade rehearsal requires an explicit disposable PostgreSQL."); process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const client = new pg.Client({ connectionString: DATABASE_URL });
   const schema = `phase9_upgrade_${randomUUID().replaceAll("-", "")}`;
   let stage = "historical migrations";

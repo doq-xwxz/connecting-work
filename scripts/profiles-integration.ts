@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { AppError } from "../src/shared/errors/app-error";
-import { parseDatabaseEnv } from "../src/shared/config/env-schema";
+import { testDatabase } from "./test-database";
 import type { Principal, Role } from "../src/modules/auth/policy";
 import { discoverWorkers, getEmployer, getWorker, saveEmployer, saveWorker, setDiscoverable } from "../src/modules/profiles/service";
 import { createCompany, getCompany, listMembers, removeManager, updateCompany } from "../src/modules/companies/service";
@@ -15,7 +15,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
   console.error("BLOCKED: Phase 3 integration needs TEST_DATABASE_URL and AUTH_TEST_DATABASE=disposable.");
   process.exitCode = 2;
 } else {
-  const { DATABASE_URL } = parseDatabaseEnv({ DATABASE_URL: process.env.TEST_DATABASE_URL });
+  const { DATABASE_URL } = testDatabase(process.env);
   const tag = `phase3-${randomUUID()}`;
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL, max: 10, application_name: tag }) });
   const users: string[] = [];
@@ -179,7 +179,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
       await db.workerProfile.deleteMany({ where: { userId: { in: users } } });
       await db.employerProfile.deleteMany({ where: { userId: { in: users } } });
       await db.userRole.deleteMany({ where: { userId: { in: users } } });
-      await db.user.deleteMany({ where: { id: { in: users } } });
+      await db.rateLimit.deleteMany({ where: { key: { in: users.map((id) => `job-draft:user:${id}`) } } }); await db.user.deleteMany({ where: { id: { in: users } } });
     } catch { console.error("FAIL: Phase 3 fixture cleanup; details suppressed."); process.exitCode = 1; }
     try { await db.$disconnect(); } catch { console.error("FAIL: Phase 3 disconnect; details suppressed."); process.exitCode = 1; }
   }

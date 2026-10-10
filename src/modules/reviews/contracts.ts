@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { opaqueId } from "@/modules/profiles/contracts";
+import { validPlainText } from "@/shared/validation/text";
 
 export const reviewSchema = z.strictObject({ rating: z.number().int().min(1).max(5),
   comment: z.string().max(2000).transform((text) => text.replace(/\r\n?/g, "\n").trim())
-    .refine((text) => text.isWellFormed() && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(text)
-      && (text === "" || text.replace(/[\p{Cf}\s]/gu, "").length > 0)).transform((text) => text || null).nullable(),
+    .refine(validPlainText).transform((text) => text || null).nullable(),
   creationKey: opaqueId });
 export const reviewQuerySchema = z.strictObject({ limit: z.coerce.number().int().min(1).max(30).default(20), cursor: opaqueId.optional() });
 export type ReputationFacts = { ratingSum: number; ratingCount: number; completed: number; relevantCancelled: number };

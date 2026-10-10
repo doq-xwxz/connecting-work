@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { opaqueId } from "@/modules/profiles/contracts";
 import { AppError } from "@/shared/errors/app-error";
+import { plainText as textSchema } from "@/shared/validation/text";
 
 export const targets = ["JOB", "REVIEW", "USER", "MESSAGE", "COMPANY", "ENGAGEMENT"] as const;
 export const reasons = ["SPAM", "SCAM", "HARASSMENT", "INAPPROPRIATE_CONTENT", "MISLEADING_JOB", "IMPERSONATION", "OTHER"] as const;
@@ -11,9 +12,7 @@ export type ModerationAction = typeof moderationActions[number];
 export type Target = typeof targets[number];
 // Account IDs are opaque provider strings; all other targets use marketplace UUIDs.
 export const targetIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
-export const plainText = z.string().max(2000).transform((s) => s.replace(/\r\n?/g, "\n").trim())
-  .refine((s) => s.isWellFormed() && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(s)
-    && s.replace(/[\p{Cf}\s]/gu, "").length > 0);
+export const plainText = textSchema(2000).refine((s) => s.length > 0);
 export const targetSchema = z.strictObject({ targetType: z.enum(targets), targetId: targetIdSchema })
   .refine((v) => v.targetType === "USER" || opaqueId.safeParse(v.targetId).success);
 export const reportSchema = z.strictObject({ targetType: z.enum(targets), targetId: targetIdSchema,

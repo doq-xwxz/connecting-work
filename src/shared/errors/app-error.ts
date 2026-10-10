@@ -1,3 +1,5 @@
+import { databaseErrorCode } from "@/shared/db/failures";
+
 export const ERROR_STATUS = {
   VALIDATION: 400,
   UNAUTHENTICATED: 401,
@@ -29,6 +31,6 @@ export class AppError extends Error {
 
 // Explicit allowlist. Never serialize an Error, cause, stack or arbitrary message.
 export function toClientError(error: unknown, requestId: string) {
-  const code = error instanceof AppError ? error.code : "INTERNAL";
+  const code = error instanceof AppError ? error.code : databaseErrorCode(error);
   return { code, status: ERROR_STATUS[code], message: PUBLIC_MESSAGES[code], requestId };
 }

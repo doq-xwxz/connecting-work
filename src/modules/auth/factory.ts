@@ -4,6 +4,8 @@ import { prismaAdapter } from "@better-auth/prisma-adapter";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { AuthEmailSender } from "@/shared/email/contract";
 import type { AuthConfig } from "./config";
+import { authRateRules } from "@/shared/security/rate-config";
+import { consumeRate } from "@/shared/security/rate-limit";
 
 // Dependency injection is only for operator tests; production entrypoint is server-only.
 export function createAuth(db: PrismaClient, config: AuthConfig, email: AuthEmailSender,
@@ -40,12 +42,8 @@ export function createAuth(db: PrismaClient, config: AuthConfig, email: AuthEmai
     verification: { storeIdentifier: "hashed" },
     rateLimit: {
       enabled: true, storage: "database", window: 60, max: 100,
-      customRules: {
-        "/sign-up/email": { window: 60, max: 5 },
-        "/sign-in/email": { window: 60, max: 5 },
-        "/request-password-reset": { window: 60, max: 3 },
-        "/send-verification-email": { window: 60, max: 3 },
-      },
+      customRules: authRateRules,
+      customStorage: { consume: (key, rule) => consumeRate(db, key, rule, true) },
     },
     advanced: {
       useSecureCookies: config.production,

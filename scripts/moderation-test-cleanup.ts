@@ -1,7 +1,8 @@
+import { testDatabase } from "./test-database";
 // Disposable integration fixtures ONLY. Never import into application runtime.
 import type { PrismaClient } from "../src/generated/prisma/client";
 export async function cleanupModerationFixtures(db: PrismaClient, userIds: string[]) {
-  if (process.env.AUTH_TEST_DATABASE !== "disposable" || !process.env.TEST_DATABASE_URL) throw new Error("Disposable test database required");
+  testDatabase(process.env);
   const cases = await db.moderationCase.findMany({ where: { openedByAdminUserId: { in: userIds } }, select: { id: true } });
   const ids = cases.map((c) => c.id);
   // ALTER takes a table lock; restores guard before commit, deletes only owned IDs.

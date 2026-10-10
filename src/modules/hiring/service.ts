@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -66,16 +67,20 @@ async function normalizeExpiry(tx: Tx, applicationId: string, now: Date) {
   const result = await tx.offer.updateMany({ where: { applicationId, status: "PENDING", expiresAt: { lte: now } }, data: { status: "EXPIRED", resolvedAt: now } });
   if (result.count) await tx.application.updateMany({ where: { id: applicationId, status: "OFFERED", engagement: null }, data: { status: "SHORTLISTED" } });
 }
-async function detail(tx: Tx, id: string, side: Side) {
+async function detail(tx: Tx, id: string, side: Side, now?: Date) {
   const row = await tx.application.findUniqueOrThrow({ where: { id }, select: applicationSelect });
   const dto = applicationDto(row);
+  if (now && dto.offer?.status === "PENDING" && expired(row.offers[0].expiresAt, now)) {
+    dto.offer.status = "EXPIRED";
+    if (dto.status === "OFFERED") dto.status = "SHORTLISTED";
+  }
   if (side === "WORKER") return { ...dto, worker: null };
   const relation = await tx.application.findUniqueOrThrow({ where: { id }, select: { worker: { select: workerSelect } } });
   return { ...dto, worker: { ...discoveryWorkerDto(relation.worker), completeness: selfWorkerDto(relation.worker).completeness } };
 }
 export async function applyToJob(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
   parse(opaqueId, jobId); const { creationKey } = parse(applySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", true, true);
     if (!user.emailVerified) throw new AppError("FORBIDDEN");
     const job = await workerJob(tx, jobId);
@@ -98,17 +103,16 @@ export async function applyToJob(db: PrismaClient, actor: Principal, jobId: stri
 }
 export async function getApplication(db: PrismaClient, actor: Principal, side: Side, id: string) {
   parse(opaqueId, id);
-  // Detail reads normalize expiry, never mark applications VIEWED.
-  return db.$transaction(async (tx) => {
+  // GET projects overdue expiry without writing; actions persist it under locks.
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, side, false, true);
     await scopeApplication(tx, actor, side, id);
-    await normalizeExpiry(tx, id, await serverNow(tx));
-    return detail(tx, id, side);
+    return detail(tx, id, side, await serverNow(tx));
   });
 }
 export async function listApplications(db: PrismaClient, actor: Principal, side: Side, raw: unknown, jobId?: string) {
   const query = parse(hiringQuerySchema, raw); if (jobId) parse(opaqueId, jobId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, side, false, true);
     let where: Prisma.ApplicationWhereInput;
     if (side === "WORKER") where = { workerProfileId: (await requireWorkerProfile(tx, actor.id)).id };
@@ -139,7 +143,7 @@ export async function listApplications(db: PrismaClient, actor: Principal, side:
 }
 export async function getApplyState(db: PrismaClient, actor: Principal, jobId: string) {
   parse(opaqueId, jobId);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", true, true);
     await requireRecruitingVisible(tx, jobId);
     const worker = await requireWorkerProfile(tx, actor.id);
@@ -154,19 +158,19 @@ export async function getApplyState(db: PrismaClient, actor: Principal, jobId: s
 }
 export async function listOffers(db: PrismaClient, actor: Principal, side: Side, applicationId: string, raw: unknown) {
   parse(opaqueId, applicationId); const query = parse(hiringQuerySchema.omit({ status: true }), raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, side, false, true);
     await scopeApplication(tx, actor, side, applicationId);
-    await normalizeExpiry(tx, applicationId, await serverNow(tx));
+    const now = await serverNow(tx);
     const rows = await tx.offer.findMany({ where: { applicationId, ...(query.cursor ? { id: { gt: query.cursor } } : {}) }, select: offerSelect, orderBy: { id: "asc" }, take: query.limit + 1 });
     const page = rows.slice(0, query.limit);
-    return { items: page.map(offerDto), nextCursor: rows.length > query.limit ? page.at(-1)!.id : null };
+    return { items: page.map((row) => { const dto = offerDto(row); if (row.status === "PENDING" && expired(row.expiresAt, now)) dto.status = "EXPIRED"; return dto; }), nextCursor: rows.length > query.limit ? page.at(-1)!.id : null };
   });
 }
 export async function actOnApplication(db: PrismaClient, actor: Principal, id: string, action: ApplicationAction, raw: unknown) {
   parse(opaqueId, id); parse(emptySchema, raw);
   const side = action === "withdraw" ? "WORKER" : "EMPLOYER";
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, side, side === "EMPLOYER", true);
     const { application } = await scopeApplication(tx, actor, side, id);
     const now = await serverNow(tx); await normalizeExpiry(tx, id, now);
@@ -181,7 +185,7 @@ export async function actOnApplication(db: PrismaClient, actor: Principal, id: s
 }
 export async function createOffer(db: PrismaClient, actor: Principal, applicationId: string, raw: unknown) {
   parse(opaqueId, applicationId); const input = parse(offerSchema, raw);
-  const result = await db.$transaction(async (tx) => {
+  const result = await transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "EMPLOYER", true, true);
     if (!user.emailVerified) throw new AppError("FORBIDDEN");
     const { job, application } = await scopeApplication(tx, actor, "EMPLOYER", applicationId);
@@ -212,7 +216,7 @@ export async function createOffer(db: PrismaClient, actor: Principal, applicatio
 }
 export async function actOnOffer(db: PrismaClient, actor: Principal, id: string, action: OfferAction, raw: unknown) {
   parse(opaqueId, id); parse(emptySchema, raw);
-  const result = await db.$transaction(async (tx) => {
+  const result = await transaction(db, async (tx) => {
     const side = action === "revoke" ? "EMPLOYER" : "WORKER";
     const user = await currentActor(tx, actor, side, action === "accept", true);
     const initial = await tx.offer.findUnique({ where: { id }, select: { applicationId: true } });
@@ -247,7 +251,7 @@ export async function actOnEngagement(db: PrismaClient, actor: Principal, side: 
   parse(opaqueId, id);
   const cancellation = action === "cancel" ? parse(cancellationSchema, raw) : (parse(emptySchema, raw), null);
   if ((action === "request-completion" && side !== "WORKER") || (["start", "confirm-completion"].includes(action) && side !== "EMPLOYER")) throw new AppError("FORBIDDEN");
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, side, false, true);
     // D5 banned-account exceptions remain deferred; suspended parties retain only active obligations.
     if (user.status === "BANNED") throw new AppError("FORBIDDEN");

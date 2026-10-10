@@ -2,11 +2,11 @@
 
 Tìm đúng việc. Gặp đúng người.
 
-Phase 9 adds private reports, case-bound ADMIN moderation and immutable audit, including hide/unhide, account restrictions and exceptional Engagement completion/cancellation. Completed-work reviews, safe reputation, deterministic matching V2 and contextual messaging remain in place. [PRODUCT.md](PRODUCT.md) remains source of truth; [PHASE_0.md](PHASE_0.md) records approved architecture/deferred decisions. Phases 0–8 are approved; stop after Phase 9. No Phase 10 or deployment.
+Phase 10 hardens the approved Phase 0–9 marketplace: strict request/text boundaries, persisted atomic rate budgets, safe errors, bounded transaction retries, security headers and PostgreSQL/HTTP/production-build verification. [PRODUCT.md](PRODUCT.md) remains source of truth; [PHASE_0.md](PHASE_0.md) records approved decisions. See [PHASE_10.md](PHASE_10.md) for findings, evidence and remaining operational risks. Stop after Phase 10; no Phase 11 or deployment.
 
 ## Documentation
 
-[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md) · [Phase 3 historical review](PHASE_3.md) · [Phase 4 historical review](PHASE_4.md) · [Phase 5 historical review](PHASE_5.md) · [Phase 6 historical review](PHASE_6.md) · [Phase 7 historical review](PHASE_7.md) · [Phase 8 historical review](PHASE_8.md) · [Phase 9 review](PHASE_9.md)
+[AGENTS](AGENTS.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DATABASE](DATABASE.md) · [SECURITY](SECURITY.md) · [ROADMAP](ROADMAP.md) · [DESIGN_SYSTEM](DESIGN_SYSTEM.md) · [Phase 1 historical report](PHASE_1.md) · [Phase 2 evidence](PHASE_2.md) · [Phase 3 historical review](PHASE_3.md) · [Phase 4 historical review](PHASE_4.md) · [Phase 5 historical review](PHASE_5.md) · [Phase 6 historical review](PHASE_6.md) · [Phase 7 historical review](PHASE_7.md) · [Phase 8 historical review](PHASE_8.md) · [Phase 9 historical review](PHASE_9.md) · [Phase 10 review](PHASE_10.md)
 
 ## Local setup
 
@@ -41,7 +41,7 @@ pnpm start
 
 Typecheck/build generate the Prisma client first; typecheck also runs Next typegen so a clean checkout does not require prior dev/build output. `pnpm db:smoke` reports BLOCKED (exit 2) without DATABASE_URL; it is a database integration probe, not a fake passing unit test. `pnpm db:migrate --name <change>` creates/applies development migrations; `pnpm db:deploy` only applies committed SQL to an operator-selected database. These commands do not deploy the website. Never reset shared/production data.
 
-CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a fresh PostgreSQL 18 service for committed migrations, DB smoke, `pnpm test:integration`, `pnpm test:profiles`, `pnpm test:jobs`, `pnpm test:hiring`, `pnpm test:matching`, `pnpm test:messaging`, `pnpm test:reviews`, `pnpm test:moderation`, and `pnpm test:http` (actual Next Phase 2–9 routes/pages). All nine integration commands require explicit TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. Scope DATABASE_URL/DIRECT_DATABASE_URL to the same disposable endpoint for migration/smoke commands; never use production. Tests clean only their own fixtures. The HTTP child starts/stops automatically and intercepts only email transport. No browser E2E dependency, deployment or production/provider secret was added. See PHASE_9 for current evidence; earlier reports remain historical.
+CI runs frozen install, schema validation, lint, typecheck, unit tests and build, plus a fresh PostgreSQL 18 service for committed migrations, DB smoke, `pnpm test:integration`, `pnpm test:profiles`, `pnpm test:jobs`, `pnpm test:hiring`, `pnpm test:matching`, `pnpm test:messaging`, `pnpm test:reviews`, `pnpm test:moderation`, and `pnpm test:http` (actual Next Phase 2–9 routes/pages). All nine integration commands require explicit TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and applied migrations on that dedicated PostgreSQL DB. Scope DATABASE_URL/DIRECT_DATABASE_URL to the same disposable endpoint for migration/smoke commands; never use production. Tests clean only their own fixtures. The HTTP child starts/stops automatically and intercepts only email transport. No browser E2E dependency, deployment or production/provider secret was added. See PHASE_10 for current evidence; earlier reports remain historical.
 
 ## Jobs (Phase 4)
 
@@ -92,3 +92,9 @@ API: GET/POST `/api/marketplace/(worker|employer)-engagements/:id/reviews`, GET 
 ## Dependencies and boundaries
 
 Next/React render the app; TypeScript/ESLint check it (@next/eslint-plugin-next and typescript-eslint directly); Tailwind/PostCSS and minimal shadcn config/classes establish styles. Prisma/client/adapter-pg/pg connect PostgreSQL; server-only protects imports; Zod validates explicit boundaries; Vitest runs safety tests; tsx runs DB/auth probes; @next/env shares env precedence. Better Auth 1.7.7 and @better-auth/prisma-adapter 1.7.7 add auth only. Resend adapter uses native fetch without another SDK dependency. No social login, business provider or marketplace domain dependency is installed.
+
+## Phase 10 verification
+
+On an explicitly isolated PostgreSQL with all committed migrations, run pnpm test:hardening in addition to the Phase 2–9 and HTTP suites. All test commands require TEST_DATABASE_URL, AUTH_TEST_DATABASE=disposable and a database name containing a separate test/disposable segment; the parent must not run in production mode. There is no DATABASE_URL fallback. After pnpm build, pnpm test:production runs actual next start without fake-mail preload, checks secure production cookies/session/logout, headers/public/private responses and missing-email failure, then stops its child and cleans owned fixtures. CI runs both new commands.
+
+Security headers are built from next.config.ts. Optional ENABLE_HSTS=1 applies only to an explicitly HTTPS production build after TLS/domain review; default is off. Production auth rejects loopback origins. See SECURITY for the account-status matrix, rate budgets, pragmatic inline-bootstrap CSP limitation and four outstanding transitive dependency advisories. This phase performs no website deployment; production provider/load/backup/retention/proxy work remains deferred.

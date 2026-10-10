@@ -1,3 +1,4 @@
+import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -34,7 +35,7 @@ function rankPage<T extends { id: string; match: MatchResult }>(rows: T[], raw: 
 }
 export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: unknown) {
   parse(querySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "WORKER", true);
     const own = await requireWorkerProfile(tx, actor.id);
     const worker = selfWorkerDto(await tx.workerProfile.findUniqueOrThrow({ where: { id: own.id }, select: workerSelect }));
@@ -51,7 +52,7 @@ export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: u
 }
 export async function recommendedCandidates(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
   parse(opaqueId, jobId); parse(querySchema, raw);
-  return db.$transaction(async (tx) => {
+  return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true, true);
     const profile = await requireEmployerProfile(tx, actor.id);
     // Membership revocation takes this same Company lock. This private read cannot
