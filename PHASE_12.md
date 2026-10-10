@@ -72,6 +72,8 @@ Local checks executed on Node24.20/pnpm11.25: frozen install PASS, Prisma valida
 
 ## 18. Files changed
 
+Publication receipt (2026-10-10 UTC): implementation commit c1417a03a71f13208d8759fb8d27f9d729bc0939 pushed normally to main; git ls-remote matched exactly. [Repository checks run38061432265](https://github.com/doq-xwxz/connecting-work/actions/runs/38061432265) completed SUCCESS: both checks and postgres-auth, every step successful with none skipped, including release-check, analytics, HTTP, build and production smoke. This receipt documents that implementation SHA; a later documentation-only receipt commit is verified separately in the final response. Task-owned local PostgreSQL was stopped and its binaries/data/backup/credential files removed after validation. No public deployment occurred.
+
 vercel.json; next.config.ts; src/app/robots.ts; scripts/production-db-check.ts; scripts/production-smoke.ts; package.json; pnpm-workspace.yaml/pnpm-lock.yaml; .env.example; .github/workflows/ci.yml; AGENTS/ARCHITECTURE/DATABASE/SECURITY/ROADMAP/README; PRODUCTION_RUNBOOK.md and this report. No PRODUCT/PHASE_0–11/Prisma schema/historical SQL change. Credentials/env/generated clients/builds/local binaries/test data excluded from publication.
 
 ## 19. Public production evidence
