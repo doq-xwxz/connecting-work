@@ -1,5 +1,15 @@
 # Security
 
+## Phase 11 analytics privacy and monitoring
+
+ADMIN analytics is aggregate-only, requires a real session and fresh ACTIVE ADMIN, denies arbitrary user/company targets and rejects duplicate/unknown/range query fields. No account/contact/content drilldown or normal-role bypass. Private admin headers remain no-store/no-referrer/CSP. A read-only snapshot is authorization for that request only, not a cached grant.
+
+Analytics v1 carries actor role only, omitting User/reporter/admin identity. Resource UUIDs are pseudonymous linkage data, not anonymous data; future external export still needs operator policy/region/retention review. Exact strict per-event schemas reject extra fields; no email, phone, IP, token, message/review/report/moderation text, private availability/pay, raw query or entity spread. Search records only query-present and result-count bucket; no DOM/session replay/cookies/fingerprints/autocapture. No provider SDK/env is added. Noop is default; no console event payload logging.
+
+Only safe INTERNAL HTTP failures reach the reporter, as a freshly constructed generic exception and static action/generated request ID. The original error/message/stack/cause/SQL/provider response never crosses that boundary. Provider throw/timeout is contained after commit; confirmed DB-abort retries discard previous intents. Providers must honor AbortSignal; 100ms is a delivery budget, not an availability/SLA promise. Events may be lost, and provider exactly-once delivery is not assumed. Metrics and immutable business audit continue to use PostgreSQL.
+
+Public GET /api/health returns only status ok. GET /api/ready returns only ready or unavailable (503), with no environment/DB URL/schema/version/provider details. DB probe has a short statement/transaction budget and2.5s response bound; pool connection attempts remain separately bounded5s. Optional analytics/email/error providers do not gate readiness. Actual production smoke tests both a real disposable DB and an unreachable loopback DB child. No real provider or production database is used.
+
 [PRODUCT](PRODUCT.md), [PHASE_0 §10](PHASE_0.md#10-security--privacy-model) define approved policies; this file separates present Foundation controls from future controls.
 
 ## Implemented Foundation controls

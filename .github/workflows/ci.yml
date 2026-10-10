@@ -71,6 +71,7 @@ jobs:
       - run: pnpm test:reviews
       - run: pnpm test:moderation
       - run: pnpm test:hardening
+      - run: pnpm test:analytics
       - run: pnpm test:http
       - run: pnpm build
       - run: pnpm test:production

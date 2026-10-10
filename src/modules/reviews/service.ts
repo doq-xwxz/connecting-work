@@ -1,4 +1,5 @@
 import { transaction } from "@/shared/db/transaction";
+import { committedEvent } from "@/shared/observability/commit";
 import "server-only";
 import type { Prisma, PrismaClient, Review } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -38,6 +39,7 @@ export async function submitReview(db: PrismaClient, actor: Principal, side: Sid
     const row = await tx.review.create({ data: { ...input, engagementId, direction, reviewerUserId: actor.id,
       workerProfileId: engagement.workerProfileId, companyId: engagement.job.companyId,
       employerProfileId: engagement.job.companyId ? null : engagement.job.employerProfileId } });
+    committedEvent(tx, { name: "review_submitted", resourceId: row.id, actorRole: side, occurredAt: row.createdAt.toISOString(), properties: { direction } });
     return reviewDto(row, engagement.terms, engagement.completedAt);
   });
 }

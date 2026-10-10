@@ -1,5 +1,13 @@
 # Database foundation
 
+## Phase 11 metrics queries
+
+No new table, raw event persistence, backfill, snapshot rewrite or migration is needed. Job.publishedAt already preserves first publication on resume; Application.appliedAt is its immutable creation timestamp (there is no Application.createdAt). North Star uses completedAt and exact Engagement audit action provenance. Read-only RepeatableRead transactions check current ACTIVE ADMIN, capture database transaction time and aggregate a bounded UTC [start,end) interval (max 366 days). Liquidity only includes first-publication cohorts with 24h age; its numerator uses immutable eligible/score/coverage at apply and inclusive +24h. Null historical snapshots never qualify. Shared matching constants own the70/60 thresholds.
+
+Keep PAUSED/CLOSED/COMPLETED/moderation-hidden Jobs; only cancellation within inclusive 5 minutes and zero lifetime Applications excludes an observed published Job. Tests are isolated to explicitly designated disposable DBs rather than production flags. Cohort funnel counts distinct Applications with any Offer, avoiding revision inflation. All aggregate ratios expose integer evidence and null for no denominator. Application cohort outcomes are observed as of the query, not guaranteed eventual conversions. PHASE_11 documents exact field/time bases.
+
+Existing Application(jobId,status,id), Offer(applicationId,revision), Engagement(applicationId), and AuditEvent primary keys support relationship probes; range scans across all statuses are deliberate. Real 300-job aggregate/EXPLAIN and fixed query count are tested, not claimed as production sizing. There is no evidence yet to justify a new index; managed production cardinalities/plans may require a reviewed additive range-index migration in Phase 12. Query acquisition/execution remain bounded5s/10s. Run pnpm test:analytics after prior suites and before test:http. No destructive production/test endpoint exists.
+
 [PRODUCT](PRODUCT.md) is source of truth; [PHASE_0 §6](PHASE_0.md#6-conceptual-database-schema) is the conceptual domain design. Phase 5 adds separate Application, Offer and Engagement tables to Phase 4 Jobs.
 
 ## Current implementation

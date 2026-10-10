@@ -5,6 +5,7 @@ import { getAuthConfig } from "@/modules/auth/server";
 import { readJsonBody, requireSameOrigin } from "@/modules/auth/request-policy";
 import { safeFailure } from "@/modules/auth/http";
 import { AppError } from "@/shared/errors/app-error";
+import { adminAnalytics } from "@/modules/analytics/service";
 import { parse } from "@/modules/profiles/contracts";
 import { moderationActions } from "@/modules/moderation/contracts";
 import { actOnCase, attachReport, caseDetail, caseReports, caseTimeline, createCase, inspectCase, listAdminReports, listCases, progressCase } from "@/modules/moderation/service";
@@ -24,7 +25,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     }
     let result: unknown;
     if (request.method === "GET") {
-      if (path.length === 1 && area === "reports") result = await listAdminReports(db, actor, query);
+      if (path.length === 1 && area === "analytics") result = await adminAnalytics(db, actor, query);
+      else if (path.length === 1 && area === "reports") result = await listAdminReports(db, actor, query);
       else if (path.length === 1 && area === "cases") result = await listCases(db, actor, query);
       else if (area === "cases" && path.length === 2) { parse(z.strictObject({}), query); result = await caseDetail(db, actor, id); }
       else if (area === "cases" && path.length === 3 && action === "audit") result = await caseTimeline(db, actor, id, query);

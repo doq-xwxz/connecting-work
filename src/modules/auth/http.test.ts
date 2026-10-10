@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { handleAuthRequest } from "./http";
 import type { Auth } from "./factory";
+vi.mock("server-only", () => ({}));
 
 const origin = "https://app.example.invalid";
 function deps(status = 200) {

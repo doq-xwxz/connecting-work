@@ -1,3 +1,4 @@
+import { measured, publishEvents } from "@/shared/observability/runtime";
 import "server-only";
 import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
@@ -12,7 +13,7 @@ const cursorSchema = z.strictObject({ v: z.literal(1), scope: z.string().regex(/
 export async function publicSearchSkills(db: PrismaClient) {
   return db.skill.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 100 });
 }
-export async function searchPublicJobs(db: PrismaClient, raw: unknown) {
+async function searchPublicJobsWork(db: PrismaClient, raw: unknown) {
   const query = parse(publicQuerySchema, raw);
   const { cursor, limit, ...filters } = query;
   const scope = createHash("sha256").update(JSON.stringify(filters)).digest("hex");
@@ -46,3 +47,9 @@ export async function searchPublicJobs(db: PrismaClient, raw: unknown) {
   return { items: page.flatMap((hit) => { const row = byId.get(hit.id); return row ? [publicJobDto(row)] : []; }),
     nextCursor: hits.length > limit && last ? Buffer.from(JSON.stringify({ v: 1, scope, rank: last.rank, published: last.publishedAt.toISOString(), id: last.id })).toString("base64url") : null };
 }
+
+export const searchPublicJobs = (...args: Parameters<typeof searchPublicJobsWork>) => measured("job_search", async () => {
+  const result = await searchPublicJobsWork(...args);
+  await publishEvents([{ name: "job_search_performed", resourceId: crypto.randomUUID(), actorRole: "ANONYMOUS", properties: { resultBucket: result.items.length === 0 ? "ZERO" : result.items.length <= 10 ? "ONE_TO_TEN" : "ELEVEN_PLUS", queryPresent: Boolean((args[1] as { q?: string }).q?.trim()) } }]);
+  return result;
+});

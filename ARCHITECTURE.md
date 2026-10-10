@@ -1,6 +1,14 @@
 # Architecture
 
-Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–9 are approved. Phase 10 hardens existing behavior as recorded in PHASE_10. Earlier phase sections are historical, superseded only by explicit later policies below. Stop after Phase 10; Phase 11 and deployment are not authorized.
+## Phase 11 analytics boundary
+
+The server-only analytics module owns read-only cross-domain aggregate SQL and safe count DTOs, with no imports of another module's repository. It is explicitly observational: domain services remain the authorization/lifecycle source of truth. One RepeatableRead read-only transaction checks current ACTIVE ADMIN and captures DB time for all dashboard facts. UTC [start,end) ranges are limited to 366 days; SQL aggregates do not materialize Applications in Node.
+
+Shared observability contracts are typed and runtime allowlisted. Owning services enqueue only explicit event intents at actual writes. Each transaction attempt has its own WeakMap buffer, discarded on rollback; providers run only after successful commit, outside the retry catch. Noop is the immutable default. AsyncLocalStorage carries dependency-injected providers only within a request/test, not persistent analytics/session/business state. One bounded 100ms cooperative-abort budget covers each event batch; failures are swallowed, so delivery can be lossy. There is no detached background loop, external call in a transaction, event table or mandatory outbox.
+
+Static operation hooks measure coarse duration buckets. API failure boundaries forward only INTERNAL as a new generic exception plus generated request ID; expected errors and original error/stack/cause/body are never forwarded. Readiness observes PostgreSQL only; liveness has no DB/provider dependency. Actual external PostHog/Sentry adapters, privacy/region/retention credentials and alert routing remain Phase 12 operational work. See PHASE_11 for D9 formulas and executed evidence.
+
+Read [PRODUCT](PRODUCT.md) and [PHASE_0](PHASE_0.md) first. APPROVED is product/architecture decision; DESIGN PROPOSAL is implementation guidance; DEFERRED refers to Phase 0 D1–D9. Phases 0–10 are approved. Phase 11 adds Analytics + Monitoring as recorded in PHASE_11. Earlier phase sections are historical, superseded only by explicit later policies below. Stop after Phase 11; Phase 12 and deployment are not authorized.
 
 ## Approved direction
 

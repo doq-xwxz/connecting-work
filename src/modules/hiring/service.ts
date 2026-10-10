@@ -1,4 +1,6 @@
+import { measured } from "@/shared/observability/runtime";
 import { transaction } from "@/shared/db/transaction";
+import { committedEvent } from "@/shared/observability/commit";
 import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -78,7 +80,7 @@ async function detail(tx: Tx, id: string, side: Side, now?: Date) {
   const relation = await tx.application.findUniqueOrThrow({ where: { id }, select: { worker: { select: workerSelect } } });
   return { ...dto, worker: { ...discoveryWorkerDto(relation.worker), completeness: selfWorkerDto(relation.worker).completeness } };
 }
-export async function applyToJob(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
+async function applyToJobWork(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
   parse(opaqueId, jobId); const { creationKey } = parse(applySchema, raw);
   return transaction(db, async (tx) => {
     const user = await currentActor(tx, actor, "WORKER", true, true);
@@ -98,6 +100,7 @@ export async function applyToJob(db: PrismaClient, actor: Principal, jobId: stri
     const row = await tx.application.create({ data: { jobId, workerProfileId: worker.id, creationKey,
       matchEligibleAtApply: match.eligible, matchScoreAtApply: match.score, matchCoverageAtApply: match.coverage,
       matchWeightsVersion: match.weightsVersion, matchAlgorithmVersion: match.algorithmVersion, matchedAt: new Date(match.computedAt) } });
+    committedEvent(tx, { name: "application_created", resourceId: row.id, actorRole: "WORKER", occurredAt: row.appliedAt.toISOString(), properties: {} });
     return detail(tx, row.id, "WORKER");
   });
 }
@@ -180,6 +183,7 @@ export async function actOnApplication(db: PrismaClient, actor: Principal, id: s
     if (status === "WITHDRAWN") await tx.offer.updateMany({ where: { applicationId: id, status: "PENDING" }, data: { status: "REVOKED", resolvedAt: now } });
     const timestamp = { VIEWED: "viewedAt", SHORTLISTED: "shortlistedAt", REJECTED: "rejectedAt", WITHDRAWN: "withdrawnAt" }[status as "VIEWED" | "SHORTLISTED" | "REJECTED" | "WITHDRAWN"];
     if (fresh.status !== status) await tx.application.update({ where: { id }, data: { status, [timestamp]: now } });
+    if (fresh.status !== status && (status === "SHORTLISTED" || status === "REJECTED")) committedEvent(tx, { name: status === "SHORTLISTED" ? "application_shortlisted" : "application_rejected", resourceId: id, actorRole: "EMPLOYER", properties: {} });
     return detail(tx, id, side);
   });
 }
@@ -209,12 +213,13 @@ export async function createOffer(db: PrismaClient, actor: Principal, applicatio
     const offer = await tx.offer.create({ data: { applicationId, jobId: job.id, creationKey: input.creationKey, revision: (latest._max.revision ?? 0) + 1,
       terms, createdAt: now, expiresAt: input.expiresAt ? new Date(input.expiresAt) : null }, select: offerSelect });
     await tx.application.update({ where: { id: applicationId }, data: { status: "OFFERED", offeredAt: now } });
+    committedEvent(tx, { name: "offer_created", resourceId: offer.id, actorRole: "EMPLOYER", occurredAt: now.toISOString(), properties: {} });
     return { offer: offerDto(offer) };
   });
   if (!("offer" in result) || !result.offer) throw new AppError("CONFLICT");
   return result.offer;
 }
-export async function actOnOffer(db: PrismaClient, actor: Principal, id: string, action: OfferAction, raw: unknown) {
+async function actOnOfferWork(db: PrismaClient, actor: Principal, id: string, action: OfferAction, raw: unknown) {
   parse(opaqueId, id); parse(emptySchema, raw);
   const result = await transaction(db, async (tx) => {
     const side = action === "revoke" ? "EMPLOYER" : "WORKER";
@@ -237,7 +242,9 @@ export async function actOnOffer(db: PrismaClient, actor: Principal, id: string,
       const terms = acceptedSnapshotSchema.parse({ schemaVersion: 1, offer: snapshotSchema.parse(offer.terms), worker: { displayName: user.name, headline: worker.headline }, acceptedAt: now.toISOString() });
       await tx.offer.update({ where: { id }, data: { status: "ACCEPTED", resolvedAt: now } });
       await tx.application.update({ where: { id: application.id }, data: { status: "ACCEPTED", acceptedAt: now } });
-      await tx.engagement.create({ data: { applicationId: application.id, acceptedOfferId: id, jobId: job.id, workerProfileId: worker.id, terms, acceptedAt: now } });
+      const engagement = await tx.engagement.create({ data: { applicationId: application.id, acceptedOfferId: id, jobId: job.id, workerProfileId: worker.id, terms, acceptedAt: now } });
+      committedEvent(tx, { name: "offer_accepted", resourceId: id, actorRole: "WORKER", occurredAt: now.toISOString(), properties: {} });
+      committedEvent(tx, { name: "engagement_created", resourceId: engagement.id, actorRole: "WORKER", occurredAt: now.toISOString(), properties: {} });
     } else {
       await tx.offer.update({ where: { id }, data: { status: action === "decline" ? "DECLINED" : "REVOKED", resolvedAt: now } });
       await tx.application.updateMany({ where: { id: application.id, status: "OFFERED", engagement: null }, data: { status: "SHORTLISTED" } });
@@ -270,6 +277,15 @@ export async function actOnEngagement(db: PrismaClient, actor: Principal, side: 
       ...(action === "request-completion" ? { completionRequestedAt: row.completionRequestedAt ?? now } : {}),
       ...(action === "confirm-completion" ? { completedAt: row.completedAt ?? now } : {}),
       ...(cancellation ? { cancelledAt: now, cancelledBy: actor.id, cancellationCategory: cancellation.category, cancellationReason: cancellation.reason } : {}) } });
+    const base = { resourceId: id, actorRole: side, occurredAt: now.toISOString() };
+    if (status !== row.status && action === "start") committedEvent(tx, { ...base, name: "engagement_started", properties: {} });
+    if (action === "request-completion" && !row.completionRequestedAt) committedEvent(tx, { ...base, name: "completion_requested", properties: {} });
+    if (status !== row.status && status === "COMPLETED") committedEvent(tx, { ...base, name: "engagement_completed", properties: { provenance: "ORGANIC" } });
+    if (status !== row.status && status === "CANCELLED") committedEvent(tx, { ...base, name: "engagement_cancelled", properties: { provenance: "PARTICIPANT" } });
     return detail(tx, application.id, side);
   });
 }
+
+export const applyToJob = (...args: Parameters<typeof applyToJobWork>) => measured("apply", () => applyToJobWork(...args));
+
+export const actOnOffer = (...args: Parameters<typeof actOnOfferWork>) => args[3] === "accept" ? measured("offer_accept", () => actOnOfferWork(...args)) : actOnOfferWork(...args);

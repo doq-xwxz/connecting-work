@@ -508,6 +508,22 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request(`${adminApi}/cases`, undefined, cookie)).status, 403);
     // Operational test fixture only: there is deliberately no public ADMIN grant API.
     await db.userRole.create({ data: { userId: wc.id, role: "ADMIN", grantedBy: "test-fixture" } });
+    stage = "Phase 11 analytics HTTP authorization and health";
+    const metricRange = `start=${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&end=${encodeURIComponent(new Date(Date.now() + 86400000).toISOString())}`;
+    const metricsPath = `${adminApi}/analytics?${metricRange}`;
+    assert.equal((await request(metricsPath)).status, 401);
+    for (const actorCookie of [cookie, wa.cookie]) assert.equal((await request(metricsPath, undefined, actorCookie)).status, 403);
+    const analyticsResponse = await request(metricsPath, undefined, wc.cookie);
+    assert.equal(analyticsResponse.status, 200); assert.match(analyticsResponse.headers.get("cache-control")!, /no-store/);
+    assert.equal(analyticsResponse.headers.get("referrer-policy"), "no-referrer");
+    const analyticsDto = await analyticsResponse.json(); assert.equal(analyticsDto.definitionVersion, "marketplace-metrics-v1");
+    for (const forbidden of [wa.email, wc.email, "reporterUserId", "adminUserId", "messageBody", "cancellationReason"]) assert.ok(!JSON.stringify(analyticsDto).includes(forbidden));
+    for (const badQuery of [`${metricRange}&userId=${wa.id}`, `${metricRange}&start=bad`, "start=bad&end=bad", "start=2000-01-01T00:00:00Z&end=2026-01-01T00:00:00Z"]) assert.equal((await request(`${adminApi}/analytics?${badQuery}`, undefined, wc.cookie)).status, 400);
+    const analyticsPage = await request("/admin/analytics", undefined, wc.cookie); assert.equal(analyticsPage.status, 200); assert.match(await analyticsPage.text(), /Liquidity 3\/24h/);
+    assert.equal((await request("/admin/analytics")).status, 307);
+    for (const [path, expected] of [["/api/health", "ok"], ["/api/ready", "ready"]]) {
+      const response = await request(path); assert.equal(response.status, 200); assert.deepEqual(await response.json(), { status: expected }); assert.match(response.headers.get("cache-control")!, /no-store/);
+    }
     async function adminPost(path: string, body: object, expected = 200) {
       const response = await request(`${adminApi}/${path}`, body, wc.cookie);
       assert.equal(response.status, expected, `Admin ${path}`); return response.json();
@@ -593,9 +609,11 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await adminPost(`cases/${uc.id}/actions/unsuspend`, { ...decision, targetId: wm.id }, 409);
     await db.userRole.delete({ where: { userId_role: { userId: wc.id, role: "ADMIN" } } });
     assert.equal((await request(`${adminApi}/cases`, undefined, wc.cookie)).status, 403);
+    assert.equal((await request(metricsPath, undefined, wc.cookie)).status, 403);
     await db.userRole.create({ data: { userId: wc.id, role: "ADMIN", grantedBy: "test-fixture" } });
     await db.user.update({ where: { id: wc.id }, data: { status: "SUSPENDED" } });
     assert.equal((await request(`${adminApi}/cases`, undefined, wc.cookie)).status, 403);
+    assert.equal((await request(metricsPath, undefined, wc.cookie)).status, 403);
     await db.user.update({ where: { id: wc.id }, data: { status: "ACTIVE" } });
     stage = "suspension and logout";
     await db.user.update({ where: { id: userId }, data: { status: "SUSPENDED" } });
@@ -625,7 +643,7 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     assert.equal((await request("/api/auth/sign-in/email", { email, password })).status, 400);
     assert.equal((await request("/api/auth/sign-in/email", { email, password: newPassword })).status, 200);
     assert.equal((await db.user.findUniqueOrThrow({ where: { id: userId } })).status, "ACTIVE");
-    console.info("PASS: real Next HTTP Phase 2–8 regressions and Phase 9 reports/privacy/case binding/fresh ADMIN/audit/hide/unhide/forced lifecycle/status/UI/origin/XSS; PostgreSQL and test-only intercepted mail.");
+    console.info("PASS: real Next HTTP Phase 2–10 regressions plus Phase 11 analytics ADMIN/range/privacy/cache/UI/health/readiness; PostgreSQL and test-only intercepted mail.");
   } catch {
     console.error(`FAIL: HTTP auth verification at ${stage}; sensitive diagnostics suppressed.`);
     process.exitCode = 1;

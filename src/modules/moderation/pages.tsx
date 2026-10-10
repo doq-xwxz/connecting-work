@@ -21,7 +21,7 @@ async function guarded(title: string, render: (actor: Principal) => Promise<Reac
     if (error instanceof AppError && error.code === "NOT_FOUND") notFound();
     content = <p>Không thể mở khu vực này. Kiểm tra quyền và trạng thái tài khoản.</p>;
   }
-  return <main className="mx-auto max-w-3xl space-y-6 px-6 py-12"><nav className="flex flex-wrap gap-4 underline"><Link href="/account">Tài khoản</Link><Link href="/account/reports">Báo cáo của tôi</Link>{showAdmin && <><Link href="/admin/cases">Cases</Link><Link href="/admin/reports">Báo cáo cần xử lý</Link></>}</nav><h1 className="text-3xl font-semibold">{title}</h1>{content}</main>;
+  return <main className="mx-auto max-w-3xl space-y-6 px-6 py-12"><nav className="flex flex-wrap gap-4 underline"><Link href="/account">Tài khoản</Link><Link href="/account/reports">Báo cáo của tôi</Link>{showAdmin && <><Link href="/admin/cases">Cases</Link><Link href="/admin/reports">Báo cáo cần xử lý</Link><Link href="/admin/analytics">Analytics</Link></>}</nav><h1 className="text-3xl font-semibold">{title}</h1>{content}</main>;
 }
 function nextLink(query: Query, cursor: string | null, parameter = "cursor") {
   if (!cursor) return null;

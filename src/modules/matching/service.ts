@@ -1,3 +1,4 @@
+import { measured, publishEvents } from "@/shared/observability/runtime";
 import { transaction } from "@/shared/db/transaction";
 import "server-only";
 import { createHash } from "node:crypto";
@@ -33,7 +34,7 @@ function rankPage<T extends { id: string; match: MatchResult }>(rows: T[], raw: 
   return { items, candidatePoolLimit: CANDIDATE_POOL_LIMIT, rankingScope: "BOUNDED_POOL" as const,
     nextCursor: remaining.length > query.limit && last ? Buffer.from(JSON.stringify({ v: 1, scope, score: last.match.score, coverage: last.match.coverage, id: last.id })).toString("base64url") : null };
 }
-export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: unknown) {
+async function recommendedJobsWork(db: PrismaClient, actor: Principal, raw: unknown) {
   parse(querySchema, raw);
   return transaction(db, async (tx) => {
     await currentActor(tx, actor, "WORKER", true);
@@ -50,7 +51,7 @@ export async function recommendedJobs(db: PrismaClient, actor: Principal, raw: u
     return { ...rankPage(data, raw, `worker:${own.id}:${matchingConfig.weightsVersion}:${matchingConfig.algorithmVersion}`), profileCompleteness: worker.completeness };
   }, { timeout: 15000 });
 }
-export async function recommendedCandidates(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
+async function recommendedCandidatesWork(db: PrismaClient, actor: Principal, jobId: string, raw: unknown) {
   parse(opaqueId, jobId); parse(querySchema, raw);
   return transaction(db, async (tx) => {
     await currentActor(tx, actor, "EMPLOYER", true, true);
@@ -77,3 +78,15 @@ export async function recommendedCandidates(db: PrismaClient, actor: Principal, 
     return rankPage(data, raw, `employer:${actor.id}:${job.id}:${matchingConfig.weightsVersion}:${matchingConfig.algorithmVersion}`);
   }, { timeout: 15000 });
 }
+
+export const recommendedJobs = (...args: Parameters<typeof recommendedJobsWork>) => measured("worker_recommendation", async () => {
+  const result = await recommendedJobsWork(...args);
+  await publishEvents([{ name: "worker_recommendation_viewed", resourceId: crypto.randomUUID(), actorRole: "WORKER", properties: { resultBucket: result.items.length === 0 ? "ZERO" : result.items.length <= 10 ? "ONE_TO_TEN" : "ELEVEN_PLUS" } }]);
+  return result;
+});
+
+export const recommendedCandidates = (...args: Parameters<typeof recommendedCandidatesWork>) => measured("candidate_recommendation", async () => {
+  const result = await recommendedCandidatesWork(...args);
+  await publishEvents([{ name: "employer_candidate_recommendation_viewed", resourceId: crypto.randomUUID(), actorRole: "EMPLOYER", properties: { resultBucket: result.items.length === 0 ? "ZERO" : result.items.length <= 10 ? "ONE_TO_TEN" : "ELEVEN_PLUS" } }]);
+  return result;
+});

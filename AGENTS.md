@@ -1,10 +1,12 @@
 # Repository instructions
 
+Phase 11 maintenance: run pnpm test:analytics in addition to prior suites. Metrics use domain SQL, fresh ACTIVE ADMIN and a bounded UTC range, never analytics-provider events for authorization or KPIs. Job.publishedAt is first publication; Application.appliedAt is creation time. Relevance uses shared matching thresholds and immutable at-apply facts. Keep early-cancel/24h/provenance policy versioned in PHASE_11. Transaction callbacks may buffer volatile event intents only; provider calls must remain after commit and outside the retry catch. No mandatory analytics outbox, raw event store, PII, client autocapture or SDK/provider configuration. Stop at Phase 11.
+
 Before business-logic changes, read in order: [PRODUCT.md](PRODUCT.md), [PHASE_0.md](PHASE_0.md), [ARCHITECTURE.md](ARCHITECTURE.md), then relevant domain documentation. PRODUCT is product source of truth; PHASE_0 records approved decisions and deferred D1–D9. Do not reopen approved choices without a real implementation contradiction.
 
 ## Current authorization
 
-Phases 0–9 are approved. The user's 2026-10-10 Phase 10 request authorizes hardening of the existing system, including authorization, validation, headers, persisted rate limits, transaction retries and real PostgreSQL/HTTP/production-build verification. Read PHASE_1.md–PHASE_9.md as historical evidence and PHASE_10.md for current implementation. Stop after Phase 10 review; no Phase 11, uploads, analytics, AI or deployment. PRODUCT and approved historical reports/migrations remain intact.
+Phases 0–10 are approved. The user's 2026-10-10 Phase 11 request authorizes Analytics + Monitoring: authoritative PostgreSQL aggregates, D9 cohort decisions, privacy-safe post-commit events, provider-neutral monitoring, ADMIN analytics and health/readiness. Read PHASE_1.md–PHASE_10.md as historical evidence and PHASE_11.md for current implementation. Stop after Phase 11 review; no Phase 12, uploads, AI, provider provisioning or deployment. PRODUCT and approved historical reports/migrations remain intact.
 
 Standing user instruction (2026-10-07): after completing authorized changes and appropriate validation, automatically commit and push those changes to https://github.com/doq-xwxz/connecting-work on the current branch (currently main), without asking the user to repeat publication authorization. Verify the remote commit and relevant GitHub Actions results. Review the staged diff first; exclude credentials, local env, generated artifacts and unrelated changes. Do not force-push or rewrite history. Report any authentication, permission, remote conflict or CI blocker honestly. This instruction authorizes GitHub publication, not additional product scope or deployment.
 

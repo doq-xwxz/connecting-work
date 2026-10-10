@@ -24,6 +24,7 @@
     "test:reviews": "prisma generate && node --conditions=react-server --import=tsx scripts/reviews-integration.ts",
     "test:moderation": "prisma generate && node --conditions=react-server --import=tsx scripts/moderation-integration.ts && node --conditions=react-server --import=tsx scripts/moderation-upgrade.ts",
     "test:hardening": "prisma generate && node --conditions=react-server --import=tsx scripts/hardening-integration.ts",
+    "test:analytics": "prisma generate && node --conditions=react-server --import=tsx scripts/analytics-integration.ts",
     "test:production": "node --conditions=react-server --import=tsx scripts/production-smoke.ts",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",

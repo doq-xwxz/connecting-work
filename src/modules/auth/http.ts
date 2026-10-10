@@ -1,9 +1,11 @@
 import { AppError, toClientError } from "@/shared/errors/app-error";
 import { emailPaths, parseAuthBody, readJsonBody, requireSameOrigin } from "./request-policy";
 import type { Auth } from "./factory";
+import { reportUnexpected } from "@/shared/observability/runtime";
 
-export function safeFailure(error: unknown) {
+export async function safeFailure(error: unknown) {
   const mapped = toClientError(error, crypto.randomUUID());
+  if (mapped.code === "INTERNAL") await reportUnexpected("http_boundary", mapped.requestId);
   return Response.json(mapped, { status: mapped.status, headers: { "Cache-Control": "no-store" } });
 }
 

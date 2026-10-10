@@ -1,4 +1,5 @@
 import { transaction } from "@/shared/db/transaction";
+import { committedEvent } from "@/shared/observability/commit";
 import "server-only";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -61,8 +62,10 @@ async function createDraft(tx: Prisma.TransactionClient, actor: Principal, profi
     return previous;
   }
   await requireRate(tx, `job-draft:user:${actor.id}`, rateRules.jobDraftUser);
-  return tx.job.create({ data: { ...scalarData(input), companyId, employerProfileId: profileId, createdByUserId: actor.id, creationKey: key,
+  const row = await tx.job.create({ data: { ...scalarData(input), companyId, employerProfileId: profileId, createdByUserId: actor.id, creationKey: key,
     skills: { create: input.skills }, schedule: { create: input.schedule } }, select: jobSelect });
+  committedEvent(tx, { name: "job_created", resourceId: row.id, actorRole: "EMPLOYER", properties: {} });
+  return row;
 }
 export async function createJob(db: PrismaClient, actor: Principal, raw: unknown) {
   const { companyId, creationKey, ...input } = parse(createJobSchema, raw);
@@ -115,6 +118,9 @@ export async function transitionJob(db: PrismaClient, actor: Principal, id: stri
     const updated = await tx.job.update({ where: { id }, data: { status, version: { increment: 1 },
       ...(status === "PUBLISHED" && !row.publishedAt ? { publishedAt: now } : {}),
       ...(status === "CLOSED" ? { closedAt: now } : {}), ...(status === "CANCELLED" ? { cancelledAt: now } : {}) }, select: jobSelect });
+    const base = { resourceId: id, actorRole: "EMPLOYER" as const, occurrenceId: String(updated.version), occurredAt: now.toISOString() };
+    if (status === "PUBLISHED") committedEvent(tx, { ...base, name: "job_published", properties: { publication: row.publishedAt ? "RESUME" : "FIRST" } });
+    else if (status === "PAUSED" || status === "CLOSED" || status === "CANCELLED") committedEvent(tx, { ...base, name: status === "PAUSED" ? "job_paused" : status === "CLOSED" ? "job_closed" : "job_cancelled", properties: {} });
     return managedJobDto(updated, await quotaFor(tx, updated));
   });
 }

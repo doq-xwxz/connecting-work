@@ -1,4 +1,6 @@
+import { measured } from "@/shared/observability/runtime";
 import { transaction } from "@/shared/db/transaction";
+import { committedEvent } from "@/shared/observability/commit";
 import "server-only";
 import type { Prisma, PrismaClient, AuditAction, ModerationCase, Report, ReportReason } from "@/generated/prisma/client";
 import type { Principal } from "@/modules/auth/policy";
@@ -56,7 +58,9 @@ export async function createReport(db: PrismaClient, actor: Principal, raw: unkn
     if (existing) return receipt(existing);
     const now = await clock(tx);
     await requireRate(tx, `report:user:${actor.id}`, rateRules.reportUser);
-    return receipt(await tx.report.create({ data: { ...input, reporterUserId: actor.id, createdAt: now } }));
+    const report = await tx.report.create({ data: { ...input, reporterUserId: actor.id, createdAt: now } });
+    committedEvent(tx, { name: "report_created", resourceId: report.id, actorRole: fresh.roles.includes("WORKER") ? "WORKER" : "EMPLOYER", occurredAt: now.toISOString(), properties: { targetType: input.targetType } });
+    return receipt(report);
   });
 }
 async function counterpartyTarget(tx: Tx, actor: Principal, raw: unknown) {
@@ -157,7 +161,7 @@ export async function progressCase(db: PrismaClient, actor: Principal, caseId: s
     return { ok: true };
   });
 }
-export async function actOnCase(db: PrismaClient, actor: Principal, caseId: string, action: ModerationAction, raw: unknown) {
+async function actOnCaseWork(db: PrismaClient, actor: Principal, caseId: string, action: ModerationAction, raw: unknown) {
   parse(opaqueId, caseId); const input = parse(actionSchema, raw), type = actionTarget(action);
   if (type !== "USER") parse(opaqueId, input.targetId);
   const start = Date.now(), requestId = crypto.randomUUID();
@@ -183,6 +187,9 @@ export async function actOnCase(db: PrismaClient, actor: Principal, caseId: stri
       else if (action === "force-complete" || action === "force-cancel") await forceEngagement(tx, input.targetId, action, event.id, now);
       else await moderateAccount(tx, input.targetId, action, event.id);
       if (c.status !== "ACTIONED") await tx.moderationCase.update({ where: { id: caseId }, data: { status: "ACTIONED" } });
+      committedEvent(tx, { name: "moderation_action_applied", resourceId: event.id, actorRole: "ADMIN", occurredAt: now.toISOString(), properties: { action: actionNames[action] as Exclude<AuditAction, "CASE_CREATED" | "CASE_INVESTIGATING" | "CASE_CLOSED" | "REPORT_ATTACHED" | "CASE_CONTEXT_READ"> } });
+      if (action === "force-complete") committedEvent(tx, { name: "engagement_completed", resourceId: input.targetId, actorRole: "ADMIN", occurredAt: now.toISOString(), properties: { provenance: "ADMIN_FORCED" } });
+      if (action === "force-cancel") committedEvent(tx, { name: "engagement_cancelled", resourceId: input.targetId, actorRole: "ADMIN", occurredAt: now.toISOString(), properties: { provenance: "ADMIN_FORCED" } });
       return { ok: true };
     }, { timeout: 15000 });
     logger.event({ requestId, action: actionNames[action], actorId: actor.id, resourceType: type, resourceId: input.targetId, caseId, outcome: "success", durationMs: Date.now() - start });
@@ -253,3 +260,5 @@ export async function inspectCase(db: PrismaClient, actor: Principal, caseId: st
     return tx.engagement.findUnique({ where: { id: c.targetId }, select: { id: true, status: true, acceptedAt: true, startedAt: true, completionRequestedAt: true, completedAt: true, cancelledAt: true } });
   });
 }
+
+export const actOnCase = (...args: Parameters<typeof actOnCaseWork>) => measured("admin_action", () => actOnCaseWork(...args));

@@ -1,4 +1,6 @@
+import { measured } from "@/shared/observability/runtime";
 import { transaction } from "@/shared/db/transaction";
+import { committedEvent } from "@/shared/observability/commit";
 import "server-only";
 import { requireRate } from "@/shared/security/rate-limit";
 import { rateRules } from "@/shared/security/rate-config";
@@ -77,6 +79,7 @@ export async function openConversation(db: PrismaClient, actor: Principal, side:
     // Restricted/terminal users can read an existing history, not initiate a new chat.
     if (await permission(tx, context, user.status, side)) throw new AppError("FORBIDDEN");
     const conversation = await tx.conversation.create({ data: { applicationId, jobId: context.jobId, workerProfileId: context.workerProfileId } });
+    committedEvent(tx, { name: "conversation_opened", resourceId: conversation.id, actorRole: side, properties: {} });
     return summary(tx, actor, side, conversation.id, context, user.status);
   });
 }
@@ -134,7 +137,7 @@ async function budget(tx: Tx, userId: string, conversationId: string) {
   await requireRate(tx, `message:user:${userId}`, rateRules.messageUser);
   await requireRate(tx, `message:conversation:${userId}:${conversationId}`, rateRules.messageConversation);
 }
-export async function sendMessage(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
+async function sendMessageWork(db: PrismaClient, actor: Principal, side: Side, id: string, raw: unknown) {
   parse(opaqueId, id); const input = parse(sendSchema, raw);
   return transaction(db, async (tx) => {
     const { user, context } = await scoped(tx, actor, side, id);
@@ -155,6 +158,7 @@ export async function sendMessage(db: PrismaClient, actor: Principal, side: Side
       if (existing) await tx.notification.update({ where: { id: existing.id }, data: { lastMessageId: message.id } });
       else await tx.notification.create({ data: { userId: recipient, conversationId: id, lastMessageId: message.id } });
     }
+    committedEvent(tx, { name: "message_sent", resourceId: message.id, actorRole: side, occurredAt: createdAt.toISOString(), properties: {} });
     return messageDto(message, actor.id);
   });
 }
@@ -208,3 +212,5 @@ export async function readNotification(db: PrismaClient, actor: Principal, id: s
     return mark(tx, actor.id, notification.conversationId, messageId);
   });
 }
+
+export const sendMessage = (...args: Parameters<typeof sendMessageWork>) => measured("message_send", () => sendMessageWork(...args));

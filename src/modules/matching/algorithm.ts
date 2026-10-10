@@ -86,6 +86,7 @@ export function matchWorkerJob(worker: WorkerInput, name: string, job: JobInput,
   return { eligible: !reasons.length, reasons: [...new Set(reasons)], score: reasons.length || !coveredWeight ? null : round({ n: total.n, d: total.d * BigInt(coveredWeight) }, 100),
     coverage: coveredWeight, components, weightsVersion: matchingConfig.weightsVersion, algorithmVersion: matchingConfig.algorithmVersion, computedAt: computedAt.toISOString() };
 }
+export const relevanceThresholds = Object.freeze({ score: 70, coverage: 60 });
 export function isRelevantMatch(match: Pick<MatchResult, "eligible" | "score" | "coverage">) {
-  return match.eligible && match.score !== null && match.score >= 70 && match.coverage >= 60;
+  return match.eligible && match.score !== null && match.score >= relevanceThresholds.score && match.coverage >= relevanceThresholds.coverage;
 }

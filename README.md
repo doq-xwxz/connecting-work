@@ -1,5 +1,11 @@
 # Connecting Work
 
+Phase 11 adds `/admin/analytics` and GET `/api/admin/analytics?start=<UTC ISO>&end=<UTC ISO>` for fresh ACTIVE ADMIN only. Maximum366 days; end exclusive. Default page shows30 UTC days. North Star is completed Engagements, with organic/admin-forced breakdown. Liquidity measures3 relevant immutable at-apply snapshots in the first 24h for fully observed first-publication cohorts; early-zero-application cancellation policy and funnel definitions are in [PHASE_11](PHASE_11.md).
+
+`GET /api/health` is provider-independent liveness; `GET /api/ready` checks PostgreSQL and returns minimal503 when unavailable. No PostHog/Sentry credentials or SDK are required: provider-neutral interfaces default to Noop, server-side only. No autocapture/replay/PII/event table/outbox. Production adapters and alert delivery remain separate operational work; no deployment occurs.
+
+Run `pnpm test:analytics` on the same explicit disposable PostgreSQL after prior regression suites and before HTTP. CI includes it. `pnpm test:production` additionally exercises production health/readiness with healthy/unreachable DBs. All existing test isolation/credential restrictions apply. Phase 0–10 are approved; stop after Phase 11 review, with no Phase 12 or deployment authorization.
+
 Tìm đúng việc. Gặp đúng người.
 
 Phase 10 hardens the approved Phase 0–9 marketplace: strict request/text boundaries, persisted atomic rate budgets, safe errors, bounded transaction retries, security headers and PostgreSQL/HTTP/production-build verification. [PRODUCT.md](PRODUCT.md) remains source of truth; [PHASE_0.md](PHASE_0.md) records approved decisions. See [PHASE_10.md](PHASE_10.md) for findings, evidence and remaining operational risks. Stop after Phase 10; no Phase 11 or deployment.

@@ -29,6 +29,8 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     await db.user.update({where:{id:userId},data:{emailVerified:true}});
     stage="next start readiness";
     for(let i=0;i<60;i++) {if(child.exitCode!==null)throw new Error("Child exited");const r=await request("/").catch(()=>null);if(r?.ok)break;if(i===59)throw new Error("Readiness timeout");await new Promise(resolve=>setTimeout(resolve,250));}
+    stage="production health and readiness";
+    for (const [path,status] of [["/api/health","ok"],["/api/ready","ready"]]) {const response=await request(path);assert.equal(response.status,200);assert.deepEqual(await response.json(),{status});assert.match(response.headers.get("cache-control")!,/no-store/);}
     stage="production login and cookie";
     const login=await request("/api/auth/sign-in/email",{email,password}); assert.equal(login.status,200);
     const cookies=login.headers.getSetCookie();assert(cookies.some(c=>/;\s*secure/i.test(c)&&/httponly/i.test(c)&&/samesite=lax/i.test(c))); assert(cookies.every(c=>!c.toLowerCase().includes("domain=")));
@@ -39,7 +41,17 @@ if (!process.env.TEST_DATABASE_URL || process.env.AUTH_TEST_DATABASE !== "dispos
     const denied=await request("/api/admin/cases",undefined,cookie);assert.equal(denied.status,403);assert.equal((await denied.json()).code,"FORBIDDEN");
     assert.equal((await request("/api/auth/sign-up/email",{email:`other-${email}`,password,name:"Unavailable mail"})).status,503);
     assert.equal((await request("/api/auth/sign-out",{},cookie)).status,200);assert.equal((await request("/account",undefined,cookie)).status,307);
-    console.info("PASS: actual next start production build, real DB/session/cookie/login/account/logout, JSON errors, private cache, CSP without eval, missing email fails safely; no preload/deployment.");
+    stage="production readiness unavailable without leaking configuration";
+    const badProbe=createServer();badProbe.listen(0,"127.0.0.1");await once(badProbe,"listening");const badAddress=badProbe.address();assert(badAddress&&typeof badAddress!=="string");await new Promise<void>(resolve=>badProbe.close(()=>resolve()));
+    const unavailable=fork("node_modules/next/dist/bin/next",["start","--hostname","127.0.0.1","--port",String(badAddress.port)],{execArgv:[],silent:true,windowsHide:true,
+      env:{...process.env,NODE_ENV:"production",DATABASE_URL:"postgresql://unavailable:unavailable@127.0.0.1:1/phase11_disposable",APP_URL:origin,BETTER_AUTH_SECRET:secret,EMAIL_PROVIDER:"",RESEND_API_KEY:"",EMAIL_FROM:"",AUTH_HTTP_TEST:"",NODE_OPTIONS:"",NEXT_TELEMETRY_DISABLED:"1"}});
+    unavailable.stdout?.resume();unavailable.stderr?.resume();
+    try {
+      const base=`http://127.0.0.1:${badAddress.port}`;
+      for(let i=0;i<60;i++){const health=await fetch(`${base}/api/health`).catch(()=>null);if(health?.ok){assert.deepEqual(await health.json(),{status:"ok"});break;}if(i===59)throw new Error("Unavailable child startup");await new Promise(resolve=>setTimeout(resolve,250));}
+      const response=await fetch(`${base}/api/ready`,{signal:AbortSignal.timeout(5000)});assert.equal(response.status,503);assert.deepEqual(await response.json(),{status:"unavailable"});assert.match(response.headers.get("cache-control")!,/no-store/);
+    } finally {unavailable.kill();await Promise.race([once(unavailable,"exit").catch(()=>{}),new Promise(resolve=>setTimeout(resolve,5000))]);}
+    console.info("PASS: actual next start production build, real DB/session/cookie/login/account/logout, JSON errors, private cache, CSP without eval, missing email and unavailable DB readiness fail safely, liveness independent; no preload/deployment.");
   } catch {console.error(`FAIL: production smoke at ${stage}; sensitive diagnostics suppressed.`);process.exitCode=1;}
   finally {
     child.kill();await Promise.race([once(child,"exit").catch(()=>{}),new Promise(resolve=>setTimeout(resolve,5000))]);
