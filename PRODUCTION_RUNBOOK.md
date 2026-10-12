@@ -1,5 +1,13 @@
 # Production runbook — Phase 12
 
+## Current continuation gate — 2026-10-12
+
+User reports project doq-xwxz/connecting-work (prj_wNnWdEOdO9VarLXOARWD8FguE021), reserved connecting-work.vercel.app, Neon connecting-work-db Free/Singapore and production secrets configured. These reports supersede the earlier unprovisioned account inventory below but are not independent provider verification. Current explicit-scope project API access returns403; no local Vercel CLI exists and browser access reaches Login. Complete authentication to the intended account before reading secrets or performing release work. Keep the unrelated promote workspace excluded.
+
+Release source fetched and verified: clean local HEAD equals origin/main at9fe3821acf156652c1f20d1ab9b7d10eee0e0530, exact-SHA Actions run38061676490 SUCCESS. Freeze/recheck the current main SHA again after any documentation publication. No production migration or deployment was attempted in this continuation. Neon PG18/UTF8/collation/TLS/freshness/history and actual backup/restore remain unverified. The reported Production/Preview integration must not be assumed isolated; verify separate databases/secrets before preview mutation use. Automatic Git deployments remain disabled.
+
+Real email remains BLOCKED until an owned Resend sender domain is verified. Leave EMAIL_FROM unset rather than inventing a sender; do not use resend.dev as production acceptance. Existing health/readiness are independent of mail configuration, and missing sender fails mail-required auth safely. No application boot change or bypass is warranted from source inspection alone. No current hosted health/auth outcome is claimed. See PHASE_12 continuation receipt for observed access blockers and the unchanged release gates below.
+
 Status: **BLOCKED — USER ACTION REQUIRED**. Repository preparation is separate from a public release. No production account/project, database, migration, email delivery, backup or URL has been verified. The user confirmed the connected Vercel team is not theirs; do not use that team. No paid service or domain purchase is authorized. Stop at Phase 12.
 
 ## Ownership and architecture

@@ -1,5 +1,17 @@
 # Phase 12 — Production Readiness + Public Deployment
 
+## Continuation receipt — 2026-10-12
+
+**BLOCKED — USER ACTION REQUIRED.** This dated receipt supersedes earlier account/provisioning descriptions below; earlier executed test evidence remains historical.
+
+- Source verified now: fetched origin/main; local HEAD and origin/main both 9fe3821acf156652c1f20d1ab9b7d10eee0e0530; working tree clean before release work. GitHub Actions run38061676490 for this exact SHA is completed/success.
+- User reports personal workspace doq-xwxz, project connecting-work/prj_wNnWdEOdO9VarLXOARWD8FguE021, reserved https://connecting-work.vercel.app (not a promoted deployment), Neon connecting-work-db Free/Singapore with Neon Auth disabled, Production/Preview integration, pooled/direct connection variables and production auth/Resend/build configuration. These are user-supplied external facts, not independently verified by this session. No secret values were requested or displayed.
+- Actual access attempt: project GET with explicit project ID and doq-xwxz scope returned403 forbidden, requiring authorization to that scope. No Vercel CLI is installed. Browser fallback opened the intended project and reached the Vercel login page, with no authenticated session available. No unchanged API retry, other-workspace provisioning or credential workaround was attempted.
+- Consequently Neon identity/version/UTF8/pg_unicode_fast, TLS/pooling, fresh schema/migration history and managed backup/PITR/restore capability remain unverified. Production migration was NOT RUN. No deployment was created/promoted; deployment SHA/ID and runtime health/readiness/security evidence remain unavailable. Never run fixture suites against this database. Production/Preview database isolation must be verified before enabling any preview mutations; reported shared integration is not proof of isolation.
+- Mail remains independently BLOCKED: user confirms no owned verified sender domain. Do not fabricate EMAIL_FROM or use resend.dev as production evidence. Source inspection confirms mail sending requires EMAIL_PROVIDER=resend, RESEND_API_KEY and EMAIL_FROM; health/readiness have no mail dependency. Existing production-smoke CI evidence verifies safe missing-mail failure, not current hosted behavior. No code change or weaker verification gate is justified by the access blocker.
+- Next required action: authenticate the open Vercel browser to the intended account or repair connector authorization to doq-xwxz; then independently verify project/env metadata, direct release secret handling, Neon compatibility/freshness and backup gates before migration/deployment. Real sender verification, auth/core public smoke and existing operations/privacy gates still block launch. No paid service/domain purchase, automatic Git deployment or Phase13 work.
+- Repository changes in this continuation are documentation-only: PHASE_12.md and PRODUCTION_RUNBOOK.md. No schema, migration, business code, dependency or env changes; no new test execution claimed. Review/diff validation and final publication/CI are reported separately for the documentation commit.
+
 ## 1. Phase 12 Summary
 
 **BLOCKED — USER ACTION REQUIRED** for public production release. Phases 0–11 are approved. The 2026-10-10 request authorizes Phase 12 and project-specific managed deployment, excludes paid purchases without approval, and requires honest provider blockers while repository preparation proceeds. Base main: f588201d493b8eb74ba330317902128ef9f7044b. No Phase 13.
